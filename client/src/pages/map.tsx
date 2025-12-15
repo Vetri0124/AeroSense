@@ -10,6 +10,7 @@ delete L.Icon.Default.prototype._getIconUrl;
 
 // Mock geo data
 const LOCATIONS = [
+  { name: "Coimbatore", lat: 11.0168, lng: 76.9558, aqi: 75 },
   { name: "New Delhi", lat: 28.6139, lng: 77.2090, aqi: 180 },
   { name: "Mumbai", lat: 19.0760, lng: 72.8777, aqi: 120 },
   { name: "Bangalore", lat: 12.9716, lng: 77.5946, aqi: 65 },
@@ -29,8 +30,8 @@ function MapController() {
 }
 
 export default function MapView() {
-  // Center roughly on India
-  const position: [number, number] = [20.5937, 78.9629];
+  // Center roughly on South India/Coimbatore
+  const position: [number, number] = [11.0168, 76.9558];
 
   return (
     <Layout>

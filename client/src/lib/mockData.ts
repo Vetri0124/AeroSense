@@ -51,8 +51,8 @@ export const generateHistoricalData = (days: number = 30): WeatherData[] => {
   
   for (let i = days; i >= 0; i--) {
     const date = subDays(now, i);
-    // Simulate some realistic-looking variation
-    const baseAQI = 80 + Math.sin(i * 0.5) * 40 + Math.random() * 20; 
+    // Coimbatore has generally better air quality (moderate range 50-100)
+    const baseAQI = 65 + Math.sin(i * 0.5) * 20 + Math.random() * 15; 
     
     data.push({
       timestamp: format(date, "MMM dd"),
@@ -80,7 +80,7 @@ export const generateForecastData = (hours: number = 24): WeatherData[] => {
   for (let i = 0; i < hours; i++) {
     const date = addHours(now, i);
     // Forecast usually follows trend but smoothing out
-    const baseAQI = 90 + Math.sin(i * 0.2) * 30; 
+    const baseAQI = 70 + Math.sin(i * 0.2) * 15; 
     
     data.push({
       timestamp: format(date, "h a"),

@@ -65,7 +65,7 @@ export default function Dashboard() {
           
           <div className="relative z-10 max-w-2xl">
             <motion.div variants={item}>
-              <h2 className="text-sm font-mono text-primary mb-2 uppercase tracking-widest">Live Monitoring • New Delhi, IN</h2>
+              <h2 className="text-sm font-mono text-primary mb-2 uppercase tracking-widest">Live Monitoring • Coimbatore, IN</h2>
               <h1 className="text-4xl md:text-5xl font-heading font-bold text-white mb-4 leading-tight">
                 Air Quality is <span style={{ color: aqiColor }} className="drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">{aqiLabel}</span>
               </h1>
