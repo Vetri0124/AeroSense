@@ -98,61 +98,64 @@ export default function Analytics() {
                 </div>
               </div>
 
-              {/* Spatial Heatmap / Surface Map */}
-              <div className="space-y-4 pt-4 border-t border-white/10">
-                <div className="flex items-center gap-2 text-white">
-                  <Globe className="h-5 w-5 text-primary" />
-                  <h3 className="text-xl font-heading font-semibold">Surface Map & Spatial Heatmap</h3>
-                </div>
-                <div className="h-[500px] w-full rounded-2xl overflow-hidden border border-white/10 relative shadow-2xl">
-                  <MapContainer 
-                    center={[11.0168, 76.9558]} 
-                    zoom={12} 
-                    style={{ height: "100%", width: "100%", background: "#0f172a" }}
-                    scrollWheelZoom={false}
-                  >
-                    <TileLayer
-                      attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
-                      url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                    />
-                    
-                    {/* Simulated Heatmap using Circles with gradients */}
-                    {heatmapPoints.map((point, i) => (
-                      <CircleMarker
-                        key={i}
-                        center={[point.lat, point.lng]}
-                        radius={20 + Math.random() * 20}
-                        pathOptions={{
-                          fillColor: point.intensity > 70 ? '#ef4444' : point.intensity > 40 ? '#eab308' : '#22c55e',
-                          fillOpacity: 0.3,
-                          stroke: false
-                        }}
-                      />
-                    ))}
+                  {/* Spatial Heatmap / Surface Map */}
+                  <div className="space-y-4 pt-4 border-t border-white/10">
+                    <div className="flex items-center gap-2 text-white">
+                      <Globe className="h-5 w-5 text-primary" />
+                      <h3 className="text-xl font-heading font-semibold">Surface Map & Spatial Heatmap</h3>
+                    </div>
+                    <div className="h-[500px] w-full rounded-2xl overflow-hidden border border-white/10 relative shadow-2xl">
+                      {/* @ts-ignore */}
+                      <MapContainer 
+                        center={[11.0168, 76.9558]} 
+                        zoom={13} 
+                        style={{ height: "100%", width: "100%", background: "#e2e8f0" }}
+                        scrollWheelZoom={true}
+                      >
+                        {/* @ts-ignore */}
+                        <TileLayer
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        
+                        {/* Simulated Heatmap using Circles with gradients */}
+                        {heatmapPoints.map((point, i) => (
+                          // @ts-ignore
+                          <CircleMarker
+                            key={i}
+                            center={[point.lat, point.lng]}
+                            radius={20 + Math.random() * 20}
+                            pathOptions={{
+                              fillColor: point.intensity > 70 ? '#ef4444' : point.intensity > 40 ? '#eab308' : '#22c55e',
+                              fillOpacity: 0.4,
+                              stroke: false
+                            }}
+                          />
+                        ))}
 
-                    <Popup position={[11.0168, 76.9558]}>
-                      <div className="text-black p-1">
-                        <b>Coimbatore Surface Station</b><br/>
-                        Pressure: 1012 hPa<br/>
-                        Temp: 28°C
+                        <Popup position={[11.0168, 76.9558]}>
+                          <div className="text-black p-1">
+                            <b>Coimbatore Surface Station</b><br/>
+                            Pressure: 1012 hPa<br/>
+                            Temp: 28°C
+                          </div>
+                        </Popup>
+                      </MapContainer>
+                      
+                      <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur p-3 rounded-lg border border-gray-200 text-xs text-gray-800 shadow-lg max-w-[200px] z-[400]">
+                        <div className="font-bold mb-2">Surface Analysis</div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-3 h-3 rounded-full bg-red-500/50" /> High Density
+                        </div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-3 h-3 rounded-full bg-yellow-500/50" /> Med Density
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-green-500/50" /> Low Density
+                        </div>
                       </div>
-                    </Popup>
-                  </MapContainer>
-                  
-                  <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur p-3 rounded-lg border border-white/10 text-xs text-white max-w-[200px]">
-                    <div className="font-bold mb-2">Surface Analysis</div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-3 h-3 rounded-full bg-red-500/50" /> High Density
-                    </div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-3 h-3 rounded-full bg-yellow-500/50" /> Med Density
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-500/50" /> Low Density
                     </div>
                   </div>
-                </div>
-              </div>
             </TabsContent>
           </div>
         </Tabs>
