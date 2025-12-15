@@ -122,3 +122,35 @@ export const getRecommendations = (aqi: number): Recommendation[] => {
   
   return recs;
 };
+
+export const generateGridData = (rows: number, cols: number): { x: string; y: string; value: number }[] => {
+  const data = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      // Create a "hotspot" effect
+      const centerX = cols / 2;
+      const centerY = rows / 2;
+      const dist = Math.sqrt(Math.pow(r - centerY, 2) + Math.pow(c - centerX, 2));
+      const value = Math.max(0, 100 - dist * 15 + (Math.random() * 20 - 10));
+      
+      data.push({
+        x: `T-${c}`,
+        y: `Z-${r}`,
+        value: Math.round(value)
+      });
+    }
+  }
+  return data;
+};
+
+export const generatePressureData = () => {
+  // Simulating data at different pressure levels (hPa)
+  // Lower pressure = Higher altitude
+  const levels = [1000, 925, 850, 700, 500, 300, 200];
+  return levels.map(level => ({
+    level: `${level} hPa`,
+    temp: Math.round(15 - (1000 - level) * 0.06), // Temp decreases with height
+    windSpeed: Math.round(10 + (1000 - level) * 0.05 + Math.random() * 10), // Wind generally increases
+    humidity: Math.max(0, Math.round(80 - (1000 - level) * 0.1 + Math.random() * 20))
+  }));
+};
