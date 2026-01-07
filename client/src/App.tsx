@@ -7,7 +7,8 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Simulation from "@/pages/simulation";
 import Analytics from "@/pages/analytics";
-import MapView from "@/pages/map";
+import EcoActions from "@/pages/eco-actions";
+import HealthGuard from "@/pages/health-guard";
 
 function Router() {
   return (
@@ -15,20 +16,25 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/simulation" component={Simulation} />
-      <Route path="/map" component={MapView} />
+      <Route path="/eco-actions" component={EcoActions} />
+      <Route path="/health-guard" component={HealthGuard} />
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>
   );
 }
 
+import { LocationProvider } from "./hooks/use-location-context";
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <LocationProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </LocationProvider>
     </QueryClientProvider>
   );
 }

@@ -1,4 +1,4 @@
-import { addDays, subDays, format, subHours, addHours } from "date-fns";
+import { addDays, subDays, format, addHours, subMonths } from "date-fns";
 
 export type AQILevel = "Good" | "Moderate" | "Unhealthy for Sensitive Groups" | "Unhealthy" | "Very Unhealthy" | "Hazardous";
 
@@ -19,7 +19,7 @@ export interface WeatherData {
 }
 
 export interface Recommendation {
-  category: "Health" | "Activity" | "Home" | "Travel";
+  category: "Health" | "Activity" | "Home" | "Travel" | "Energy";
   text: string;
   severity: "info" | "warning" | "critical";
 }
@@ -45,15 +45,15 @@ export const getAQIColor = (aqi: number): string => {
   }
 };
 
-export const generateHistoricalData = (days: number = 30): WeatherData[] => {
+export const generateHistoricalData = (days: number = 30, base?: number): WeatherData[] => {
   const data: WeatherData[] = [];
   const now = new Date();
-  
+  const aqiSeed = base || 50;
+
   for (let i = days; i >= 0; i--) {
     const date = subDays(now, i);
-    // Coimbatore has generally better air quality (moderate range 50-100)
-    const baseAQI = 65 + Math.sin(i * 0.5) * 20 + Math.random() * 15; 
-    
+    const baseAQI = aqiSeed + Math.sin(i * 0.5) * 10 + Math.random() * 20;
+
     data.push({
       timestamp: format(date, "MMM dd"),
       aqi: Math.round(baseAQI),
@@ -73,15 +73,15 @@ export const generateHistoricalData = (days: number = 30): WeatherData[] => {
   return data;
 };
 
-export const generateForecastData = (hours: number = 24): WeatherData[] => {
+export const generateForecastData = (hours: number = 24, base?: number): WeatherData[] => {
   const data: WeatherData[] = [];
   const now = new Date();
-  
+  const aqiSeed = base || 60;
+
   for (let i = 0; i < hours; i++) {
     const date = addHours(now, i);
-    // Forecast usually follows trend but smoothing out
-    const baseAQI = 70 + Math.sin(i * 0.2) * 15; 
-    
+    const baseAQI = aqiSeed + Math.sin(i * 0.2) * 5 + Math.random() * 10;
+
     data.push({
       timestamp: format(date, "h a"),
       aqi: Math.round(baseAQI),
@@ -91,8 +91,8 @@ export const generateForecastData = (hours: number = 24): WeatherData[] => {
       so2: Math.round(Math.random() * 20 + 5),
       co: parseFloat((Math.random() * 2 + 0.5).toFixed(1)),
       o3: Math.round(Math.random() * 60 + 20),
-      temp: Math.round(22 + Math.sin(i * 0.2) * 5),
-      humidity: Math.round(50 + Math.cos(i * 0.2) * 10),
+      temp: Math.round(22 + Math.random() * 5),
+      humidity: Math.round(50 + Math.random() * 10),
       windSpeed: parseFloat((Math.random() * 10 + 5).toFixed(1)),
       pressure: 1012,
       uvIndex: i > 6 && i < 18 ? Math.round(Math.random() * 8) : 0,
@@ -101,56 +101,55 @@ export const generateForecastData = (hours: number = 24): WeatherData[] => {
   return data;
 };
 
-export const getRecommendations = (aqi: number): Recommendation[] => {
-  const level = getAQILevel(aqi);
-  const recs: Recommendation[] = [];
-
-  if (level === "Good") {
-    recs.push({ category: "Activity", text: "Great day for outdoor activities!", severity: "info" });
-    recs.push({ category: "Home", text: "Open windows to ventilate your home.", severity: "info" });
-  } else if (level === "Moderate") {
-    recs.push({ category: "Health", text: "Sensitive individuals should limit prolonged outdoor exertion.", severity: "info" });
-    recs.push({ category: "Activity", text: "It's okay to be outside, but take breaks.", severity: "info" });
-  } else if (level === "Unhealthy for Sensitive Groups") {
-    recs.push({ category: "Health", text: "People with respiratory or heart disease, the elderly and children should limit prolonged exertion.", severity: "warning" });
-    recs.push({ category: "Travel", text: "Consider wearing a mask if commuting by bike.", severity: "warning" });
-  } else {
-    recs.push({ category: "Health", text: "Everyone may begin to experience health effects; members of sensitive groups may experience more serious health effects.", severity: "critical" });
-    recs.push({ category: "Home", text: "Run an air purifier indoors.", severity: "critical" });
-    recs.push({ category: "Activity", text: "Avoid outdoor exercise.", severity: "critical" });
-  }
-  
-  return recs;
-};
-
-export const generateGridData = (rows: number, cols: number): { x: string; y: string; value: number }[] => {
+export const generateAnnualReportData = (base?: number) => {
   const data = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      // Create a "hotspot" effect
-      const centerX = cols / 2;
-      const centerY = rows / 2;
-      const dist = Math.sqrt(Math.pow(r - centerY, 2) + Math.pow(c - centerX, 2));
-      const value = Math.max(0, 100 - dist * 15 + (Math.random() * 20 - 10));
-      
-      data.push({
-        x: `T-${c}`,
-        y: `Z-${r}`,
-        value: Math.round(value)
-      });
-    }
+  const now = new Date();
+  const aqiSeed = base || 50;
+
+  for (let i = 11; i >= 0; i--) {
+    const date = subMonths(now, i);
+    const baseAQI = aqiSeed + Math.sin(i * 0.8) * 15 + Math.random() * 10;
+    data.push({
+      timestamp: format(date, "MMM yyyy"),
+      aqi: Math.round(baseAQI),
+      pm25: Math.round(baseAQI * 0.6),
+      pm10: Math.round(baseAQI * 0.8),
+      co2: Math.round(380 + Math.random() * 40 + (11 - i) * 2),
+      compliance: Math.random() > 0.3 ? "PASSED" : "REVIEW"
+    });
   }
   return data;
 };
 
-export const generatePressureData = () => {
-  // Simulating data at different pressure levels (hPa)
-  // Lower pressure = Higher altitude
-  const levels = [1000, 925, 850, 700, 500, 300, 200];
-  return levels.map(level => ({
-    level: `${level} hPa`,
-    temp: Math.round(15 - (1000 - level) * 0.06), // Temp decreases with height
-    windSpeed: Math.round(10 + (1000 - level) * 0.05 + Math.random() * 10), // Wind generally increases
-    humidity: Math.max(0, Math.round(80 - (1000 - level) * 0.1 + Math.random() * 20))
+export const getRecommendations = (aqi: number): Recommendation[] => {
+  const level = getAQILevel(aqi);
+  if (level === "Good") return [
+    { category: "Activity", text: "Optimal for all external activities and high-intensity workouts.", severity: "info" },
+    { category: "Energy", text: "Green energy yield is high; consider running heavy appliance protocols.", severity: "info" },
+    { category: "Travel", text: "Low-emission travel efficiency at maximum.", severity: "info" }
+  ];
+  return [
+    { category: "Health", text: "Sensitive groups should restrict outdoor exposure due to elevated particulates.", severity: "warning" },
+    { category: "Home", text: "Seal all HVAC intake sensors to maintain purified indoor atmosphere.", severity: "info" },
+    { category: "Activity", text: "Switch to high-efficiency masks if moving through industrial sectors.", severity: "warning" }
+  ];
+};
+
+export const generateGlobalHubsData = (currentCity: string) => {
+  return [
+    { city: "New York", aqi: 45, co2: 120 },
+    { city: "London", aqi: 38, co2: 95 },
+    { city: "Tokyo", aqi: 32, co2: 110 },
+    { city: "Beijing", aqi: 142, co2: 340 },
+    { city: "Delhi", aqi: 285, co2: 410 },
+    { city: "Singapore", aqi: 52, co2: 105 }
+  ].filter(h => h.city !== currentCity);
+};
+
+export const generateCarbonTrend = () => {
+  return Array.from({ length: 12 }).map((_, i) => ({
+    month: format(addDays(new Date(2025, 0, 1), i * 30), "MMM"),
+    actual: 100 + Math.random() * 20 + i * 2,
+    projected: 100 + i * 1.5
   }));
 };

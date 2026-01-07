@@ -1,41 +1,77 @@
 import Layout from "@/components/layout";
+import { useQuery } from "@tanstack/react-query";
 import { AQIGauge } from "@/components/aqi-gauge";
 import { TrendChart } from "@/components/trend-chart";
-import { 
-  generateHistoricalData, 
-  generateForecastData, 
-  getAQILevel, 
-  getAQIColor, 
-  getRecommendations 
+import {
+  generateHistoricalData,
+  getAQILevel,
+  getAQIColor,
 } from "@/lib/mockData";
-import { 
-  Wind, 
-  Droplets, 
-  Thermometer, 
-  Sun, 
-  CloudRain, 
-  AlertTriangle,
-  Info
+import {
+  Navigation,
+  Wind,
+  Droplets,
+  Thermometer,
+  Sun,
+  Activity,
+  Shield,
+  Search,
+  Globe
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useMemo } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import generatedImage from '@assets/generated_images/futuristic_abstract_data_network_globe.png';
+import { useLocation, GLOBAL_LOCATIONS } from "@/hooks/use-location-context";
 
 export default function Dashboard() {
-  const currentData = generateHistoricalData(1)[0]; // Use latest historical as current
-  const historicalData = generateHistoricalData(30);
-  const forecastData = generateForecastData(24);
-  const recommendations = getRecommendations(currentData.aqi);
-  const aqiLabel = getAQILevel(currentData.aqi);
-  const aqiColor = getAQIColor(currentData.aqi);
+  const { location: selectedCity, setLocation: setSelectedCity } = useLocation();
+  const [showCityPicker, setShowCityPicker] = useState(false);
+
+  const { data: weatherData } = useQuery({
+    queryKey: ["/api/environment/current", selectedCity.lat, selectedCity.lon],
+    queryFn: async () => {
+      const res = await fetch(`/api/environment/current?latitude=${selectedCity.lat}&longitude=${selectedCity.lon}`);
+      if (!res.ok) throw new Error("Failed to fetch weather data");
+      return res.json();
+    }
+  });
+
+  // Memoize data generation to prevent lag during re-renders
+  const currentData = useMemo(() => {
+    const base = generateHistoricalData(1, selectedCity.aqiBase)[0];
+    if (weatherData) {
+      base.temp = weatherData.temperature;
+      base.humidity = weatherData.humidity;
+      base.uvIndex = Math.round(weatherData.uv_index);
+      base.aqi = weatherData.aqi;
+    }
+    return base;
+  }, [selectedCity.aqiBase, weatherData]);
+
+  const historicalData = useMemo(() => generateHistoricalData(30, selectedCity.aqiBase), [selectedCity.aqiBase]);
+
+  const { toast } = useToast();
+  const aqiLabel = useMemo(() => getAQILevel(currentData.aqi), [currentData.aqi]);
+  const aqiColor = useMemo(() => getAQIColor(currentData.aqi), [currentData.aqi]);
+
+  // ALERT & EARLY WARNING MODULE
+  useEffect(() => {
+    if (currentData.aqi > 100) {
+      toast({
+        title: "CRITICAL ATMOSPHERIC ALERT",
+        description: `AQI has reached ${currentData.aqi} (${aqiLabel}). High risk for sensitive groups.`,
+        variant: "destructive"
+      });
+    }
+  }, [currentData.aqi, aqiLabel, toast]);
 
   const container = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
+      transition: { staggerChildren: 0.1 }
     }
   };
 
@@ -46,151 +82,235 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      <motion.div 
+      <motion.div
         variants={container}
         initial="hidden"
         animate="show"
-        className="space-y-6"
+        className="space-y-8 pb-24"
       >
-        {/* Header Section with Background Image */}
-        <div className="relative rounded-3xl overflow-hidden p-8 md:p-12 mb-8 border border-white/10 shadow-2xl group">
+        {/* GLOBAL COMMAND HEADER */}
+        <div className="relative rounded-[2.5rem] overflow-hidden p-10 md:p-16 border border-white/10 shadow-[0_0_80px_-20px_rgba(0,0,0,0.8)] group min-h-[450px] flex items-center">
           <div className="absolute inset-0 z-0">
-             <img 
-               src={generatedImage} 
-               alt="Background" 
-               className="w-full h-full object-cover opacity-30 group-hover:scale-105 transition-transform duration-1000"
-             />
-             <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
+            <img
+              src={generatedImage}
+              alt="Globe"
+              className="w-full h-full object-cover opacity-20 group-hover:scale-110 transition-transform duration-[3s] ease-out contrast-125"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.8)_100%)]" />
           </div>
-          
-          <div className="relative z-10 max-w-2xl">
-            <motion.div variants={item}>
-              <h2 className="text-sm font-mono text-primary mb-2 uppercase tracking-widest">Live Monitoring • Coimbatore, IN</h2>
-              <h1 className="text-4xl md:text-5xl font-heading font-bold text-white mb-4 leading-tight">
-                Air Quality is <span style={{ color: aqiColor }} className="drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">{aqiLabel}</span>
-              </h1>
-              <p className="text-muted-foreground text-lg mb-6">
-                AI analysis suggests moderate risk for sensitive groups today. 
-                Wind patterns indicate improving conditions by evening.
-              </p>
+
+          <div className="relative z-10 w-full flex flex-col md:flex-row justify-between items-center gap-12">
+            <div className="max-w-2xl text-center md:text-left">
+              <motion.div variants={item}>
+                <div className="flex items-center justify-center md:justify-start gap-3 mb-6">
+                  <div className="bg-primary/20 p-2.5 rounded-2xl border border-primary/30 backdrop-blur-md">
+                    <Globe className="h-6 w-6 text-primary animate-spin-slow" />
+                  </div>
+                  <span className="text-[10px] font-black font-mono text-primary uppercase tracking-[0.4em]"></span>
+                </div>
+
+                <h1 className="text-6xl md:text-8xl font-heading font-black text-white mb-6 leading-none tracking-tighter uppercase">
+                  Aero <br /> <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-primary glow-text">Sense</span>
+                </h1>
+
+                <p className="text-gray-400 text-xl mb-10 max-w-lg leading-relaxed font-medium">
+                  Environmental intelligence. Tracking air health across continents in real-time.
+                </p>
+
+                <div className="flex flex-wrap justify-center md:justify-start gap-4">
+                  <button className="px-8 py-4 bg-primary text-black font-black uppercase text-[10px] tracking-widest rounded-2xl shadow-[0_0_40px_rgba(0,255,255,0.4)] hover:scale-105 transition-transform">
+                    Launch Sat-Link
+                  </button>
+                  <button
+                    onClick={() => setShowCityPicker(!showCityPicker)}
+                    className="px-8 py-4 bg-white/5 border border-white/10 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl hover:bg-white/10 transition-all flex items-center gap-3 backdrop-blur-md"
+                  >
+                    <Search className="h-4 w-4" /> Switch Sector
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+
+            <motion.div variants={item} className="shrink-0">
+              <div className="glass-panel p-8 rounded-[3rem] border border-white/10 shadow-2xl backdrop-blur-lg relative overflow-hidden group/card">
+                <div className="absolute -top-10 -right-10 opacity-10">
+                  <Shield className="w-32 h-32 text-primary" />
+                </div>
+                <div className="relative z-10 space-y-6 text-center">
+                  <div>
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Active Sector</span>
+                    <h3 className="text-3xl font-heading font-black text-white uppercase text-glow">{selectedCity.city}</h3>
+                    <p className="text-[10px] text-primary font-mono font-bold tracking-[0.2em]">{selectedCity.country}</p>
+                  </div>
+
+                  <div className="h-px bg-white/10" />
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="text-center">
+                      <p className="text-[8px] text-gray-500 font-black uppercase mb-1">AQI INDEX</p>
+                      <p className="text-2xl font-black text-white leading-none font-heading">{currentData.aqi}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[8px] text-gray-500 font-black uppercase mb-1">Network</p>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        <p className="text-[10px] font-mono font-bold text-green-500">LIVE</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           </div>
         </div>
 
-        {/* Top Grid: Gauge + Stats */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <motion.div variants={item} className="lg:col-span-1">
-            <AQIGauge value={currentData.aqi} label={aqiLabel} color={aqiColor} />
-          </motion.div>
-
-          <motion.div variants={item} className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard 
-              icon={Thermometer} 
-              label="Temperature" 
-              value={`${currentData.temp}°C`} 
-              sub="Feels like 22°"
-              color="text-orange-400"
-            />
-            <StatCard 
-              icon={Droplets} 
-              label="Humidity" 
-              value={`${currentData.humidity}%`} 
-              sub="Dew point 18°"
-              color="text-blue-400"
-            />
-            <StatCard 
-              icon={Wind} 
-              label="Wind Speed" 
-              value={`${currentData.windSpeed} km/h`} 
-              sub="Direction NW"
-              color="text-teal-400"
-            />
-            <StatCard 
-              icon={Sun} 
-              label="UV Index" 
-              value={currentData.uvIndex.toString()} 
-              sub="Moderate"
-              color="text-yellow-400"
-            />
-            
-            {/* Pollutants Row */}
-            <StatCard label="PM2.5" value={currentData.pm25.toString()} unit="µg/m³" sub="Fine Particles" minimal />
-            <StatCard label="PM10" value={currentData.pm10.toString()} unit="µg/m³" sub="Coarse Particles" minimal />
-            <StatCard label="NO₂" value={currentData.no2.toString()} unit="ppb" sub="Nitrogen Dioxide" minimal />
-            <StatCard label="O₃" value={currentData.o3.toString()} unit="ppb" sub="Ozone" minimal />
-          </motion.div>
-        </div>
-
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <motion.div variants={item}>
-            <TrendChart data={historicalData} type="history" />
-          </motion.div>
-          <motion.div variants={item}>
-            <TrendChart data={forecastData} type="forecast" />
-          </motion.div>
-        </div>
-
-        {/* Recommendations Section */}
-        <motion.div variants={item}>
-          <div className="glass-panel p-6 rounded-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-primary/20 p-2 rounded-lg text-primary">
-                <Info className="h-6 w-6" />
-              </div>
-              <h3 className="text-xl font-heading font-semibold text-white">AI Recommendations</h3>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recommendations.map((rec, i) => (
-                <div 
-                  key={i} 
-                  className={cn(
-                    "p-4 rounded-xl border flex items-start gap-4 transition-colors hover:bg-white/5",
-                    rec.severity === "critical" ? "border-red-500/30 bg-red-500/5" :
-                    rec.severity === "warning" ? "border-orange-500/30 bg-orange-500/5" :
-                    "border-white/10 bg-white/5"
-                  )}
-                >
-                  <div className={cn(
-                    "mt-1 p-1.5 rounded-full",
-                    rec.severity === "critical" ? "bg-red-500/20 text-red-400" :
-                    rec.severity === "warning" ? "bg-orange-500/20 text-orange-400" :
-                    "bg-blue-500/20 text-blue-400"
-                  )}>
-                    <AlertTriangle className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-mono uppercase opacity-70 mb-1 block">{rec.category}</span>
-                    <p className="text-sm text-foreground/90 font-medium leading-relaxed">
-                      {rec.text}
-                    </p>
-                  </div>
+        {/* CITY SEARCH OVERLAY */}
+        <AnimatePresence>
+          {showCityPicker && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-background/80 backdrop-blur-xl"
+            >
+              <div className="glass-panel w-full max-w-2xl rounded-[3rem] border border-white/10 p-12 shadow-2xl overflow-hidden relative">
+                <div className="absolute -top-10 -right-10 opacity-5">
+                  <Globe className="w-64 h-64" />
                 </div>
-              ))}
+                <div className="relative z-10">
+                  <h2 className="text-4xl font-heading font-black text-white mb-8 uppercase tracking-tighter">Global Selection</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[350px] overflow-y-auto pr-4 custom-scrollbar">
+                    {GLOBAL_LOCATIONS.map((city) => (
+                      <button
+                        key={city.city}
+                        onClick={() => {
+                          setSelectedCity(city);
+                          setShowCityPicker(false);
+                        }}
+                        className={cn(
+                          "p-6 rounded-2xl border transition-all text-left flex justify-between items-center group",
+                          selectedCity.city === city.city
+                            ? "bg-primary text-black border-primary shadow-[0_0_20px_rgba(0,255,255,0.2)]"
+                            : "bg-white/5 border-white/10 hover:border-white/30 text-white"
+                        )}
+                      >
+                        <div>
+                          <p className="text-lg font-black uppercase leading-none mb-1 font-heading">{city.city}</p>
+                          <p className={cn("text-[9px] font-mono font-bold uppercase tracking-widest", selectedCity.city === city.city ? "text-black/60" : "text-gray-500")}>{city.country}</p>
+                        </div>
+                        <div className={cn("p-2 rounded-xl transition-colors", selectedCity.city === city.city ? "bg-black/10" : "bg-white/5 group-hover:bg-primary group-hover:text-black")}>
+                          <Navigation className="h-4 w-4" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setShowCityPicker(false)}
+                    className="mt-8 w-full py-4 text-[10px] font-black uppercase tracking-[0.4em] text-gray-500 hover:text-white transition-colors"
+                  >
+                    Dismiss Overlay
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* DATA GRID */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <motion.div variants={item} className="lg:col-span-4 space-y-8">
+            <AQIGauge value={currentData.aqi} label={aqiLabel} color={aqiColor} />
+            <div className="glass-panel p-8 rounded-[2.5rem] border border-white/10 space-y-6 bg-black/30">
+              <div className="flex items-center gap-3">
+                <Activity className="h-5 w-5 text-primary" />
+                <h4 className="text-xs font-black uppercase tracking-widest text-white">Sensor Integrity</h4>
+              </div>
+              <div className="space-y-4">
+                <SensorProgress label="Network Latency" value={98} />
+                <SensorProgress label="Payload Sync" value={92} />
+                <SensorProgress label="AI-Node Confidence" value={99} />
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div variants={item} className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <StatCard icon={Thermometer} label="Thermal Flux" value={`${currentData.temp}°C`} sub="NOMINAL" color="text-orange-400" />
+            <StatCard icon={Droplets} label="Hydrometrics" value={`${currentData.humidity}%`} sub="STABLE" color="text-blue-400" />
+            <StatCard icon={Wind} label="Velocity Output" value={`${currentData.windSpeed} k/h`} sub="NORTH-WEST" color="text-teal-400" />
+            <StatCard icon={Sun} label="Photon Density" value={currentData.uvIndex.toString()} sub="MODERATE" color="text-yellow-400" />
+
+            <div className="md:col-span-2 glass-panel p-10 rounded-[2.5rem] border border-white/10 bg-black/20 flex flex-wrap justify-around items-center gap-12 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+              <SimpleStat label="Particulate 2.5" value={currentData.pm25} unit="μg/m³" />
+              <SimpleStat label="Particulate 10" value={currentData.pm10} unit="μg/m³" />
+              <SimpleStat label="Nitrogen Oxide" value={currentData.no2} unit="ppb" />
+              <SimpleStat label="Ozone Saturation" value={currentData.o3} unit="ppb" />
+            </div>
+          </motion.div>
+        </div>
+
+        <div className="mt-16 glass-panel p-12 rounded-[2.5rem] border border-white/10 bg-black/40 shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-12 opacity-5 scale-150 rotate-12 transition-transform duration-[4s]">
+            <Wind className="w-64 h-64 text-primary" />
+          </div>
+          <div className="relative z-10">
+            <h3 className="text-4xl font-heading font-black text-white uppercase tracking-tighter mb-4 leading-none">Atmospheric Flux <span className="text-primary font-mono tracking-widest text-xl ml-4">HISTORY</span></h3>
+            <p className="text-gray-500 text-lg mb-12 font-medium max-w-2xl italic leading-relaxed">Persistent tracking of particulate matter and chemical composition in the lower atmosphere over the trailing 30 cycles.</p>
+            <div className="h-[450px]">
+              <TrendChart data={historicalData} type="history" />
             </div>
           </div>
-        </motion.div>
-
+        </div>
       </motion.div>
     </Layout>
   );
 }
 
-function StatCard({ icon: Icon, label, value, sub, color, unit, minimal }: any) {
+function StatCard({ icon: Icon, label, value, sub, color, className }: any) {
   return (
-    <div className={cn("glass-panel p-4 rounded-xl flex flex-col justify-between", minimal && "bg-white/2 border-white/5")}>
-      <div className="flex justify-between items-start mb-2">
-        <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">{label}</span>
-        {Icon && <Icon className={cn("h-4 w-4", color)} />}
+    <div className={cn("glass-panel p-8 rounded-[2.5rem] border border-white/5 flex flex-col justify-between hover:bg-white/5 transition-all group relative overflow-hidden", className)}>
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-125 transition-transform duration-700">
+        <Icon className="w-24 h-24" />
       </div>
-      <div>
-        <div className="flex items-baseline gap-1">
-          <span className="text-2xl font-bold font-heading text-white">{value}</span>
-          {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
+      <div className="relative z-10">
+        <span className="text-gray-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4 block">{label}</span>
+        <div className="flex items-baseline gap-2">
+          <span className="text-5xl font-heading font-black text-white tracking-tighter leading-none glow-text">{value}</span>
         </div>
-        {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+        <p className="text-[10px] font-mono font-bold text-primary mt-4 uppercase tracking-widest">{sub}</p>
       </div>
     </div>
   );
+}
+
+function SimpleStat({ label, value, unit }: any) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      <span className="text-[9px] text-gray-500 uppercase tracking-[0.4em] font-black mb-4">{label}</span>
+      <div className="flex items-baseline gap-2">
+        <span className="text-4xl font-black text-white glow-text leading-none">{value}</span>
+        <span className="text-[10px] text-primary font-mono font-bold uppercase">{unit}</span>
+      </div>
+    </div>
+  )
+}
+
+function SensorProgress({ label, value }: { label: string, value: number }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-500">
+        <span>{label}</span>
+        <span className="text-primary">{value}%</span>
+      </div>
+      <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          className="h-full bg-primary shadow-[0_0_10px_var(--color-primary)]"
+        />
+      </div>
+    </div>
+  )
 }
