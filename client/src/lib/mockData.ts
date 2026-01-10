@@ -124,14 +124,14 @@ export const generateAnnualReportData = (base?: number) => {
 export const getRecommendations = (aqi: number): Recommendation[] => {
   const level = getAQILevel(aqi);
   if (level === "Good") return [
-    { category: "Activity", text: "Optimal for all external activities and high-intensity workouts.", severity: "info" },
-    { category: "Energy", text: "Green energy yield is high; consider running heavy appliance protocols.", severity: "info" },
-    { category: "Travel", text: "Low-emission travel efficiency at maximum.", severity: "info" }
+    { category: "Activity", text: "Perfect for outdoor exercise and activities.", severity: "info" },
+    { category: "Energy", text: "Energy levels are good; a great time to handle house chores.", severity: "info" },
+    { category: "Travel", text: "A great day for a walk or bike ride.", severity: "info" }
   ];
   return [
-    { category: "Health", text: "Sensitive groups should restrict outdoor exposure due to elevated particulates.", severity: "warning" },
-    { category: "Home", text: "Seal all HVAC intake sensors to maintain purified indoor atmosphere.", severity: "info" },
-    { category: "Activity", text: "Switch to high-efficiency masks if moving through industrial sectors.", severity: "warning" }
+    { category: "Health", text: "Sensitive people should try to stay indoors.", severity: "warning" },
+    { category: "Home", text: "Close your windows to keep the indoor air clean.", severity: "info" },
+    { category: "Activity", text: "Wear a mask if you're near busy roads or factories.", severity: "warning" }
   ];
 };
 

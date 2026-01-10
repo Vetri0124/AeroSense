@@ -3,6 +3,57 @@
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
+  "main": "electron-main.js",
+  "build": {
+    "appId": "com.aerosense.app",
+    "productName": "AeroSense",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.js",
+      "preload.js",
+      "server/**/*",
+      "!server/__pycache__",
+      "!server/*.pyc"
+    ],
+    "extraResources": [
+      {
+        "from": "server",
+        "to": "server",
+        "filter": [
+          "**/*",
+          "!__pycache__",
+          "!*.pyc"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "client/public/icon.png"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "client/public/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "category": "Utility",
+      "icon": "client/public/icon.png"
+    }
+  },
   "scripts": {
     "dev:client": "vite",
     "dev:server": "python server/main.py",
@@ -10,7 +61,12 @@
     "build": "vite build",
     "start": "python server/main.py",
     "check": "tsc",
-    "db:push": "echo 'No node migration needed'"
+    "db:push": "echo 'No node migration needed'",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "electron:build:win": "npm run build && electron-builder --win",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -95,13 +151,17 @@
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^8.2.2",
     "drizzle-kit": "^0.31.4",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
     "esbuild": "^0.25.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
-    "vite": "^7.1.9"
+    "vite": "^7.1.9",
+    "wait-on": "^7.2.0"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"

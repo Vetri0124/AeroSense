@@ -1,6 +1,37 @@
 from sqlalchemy.orm import Session
 import models, schemas
 
+# Users
+def get_user(db: Session, user_id: str):
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+def get_user_by_username(db: Session, username: str):
+    return db.query(models.User).filter(models.User.username == username).first()
+
+def create_user(db: Session, user: schemas.UserCreate):
+    db_user = models.User(**user.dict())
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def get_users(db: Session):
+    return db.query(models.User).all()
+
+# Admins
+def get_admin_by_username(db: Session, username: str):
+    return db.query(models.Admin).filter(models.Admin.username == username).first()
+
+def create_admin(db: Session, admin: schemas.AdminCreate):
+    db_admin = models.Admin(
+        username=admin.username,
+        password=admin.password
+    )
+    db.add(db_admin)
+    db.commit()
+    db.refresh(db_admin)
+    return db_admin
+
 # User Settings
 def get_user_settings(db: Session, user_id: str):
     return db.query(models.UserSettings).filter(models.UserSettings.user_id == user_id).first()

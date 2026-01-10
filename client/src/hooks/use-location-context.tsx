@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
 export interface GlobalLocation {
     name: string;
@@ -27,8 +27,41 @@ interface LocationContextType {
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
 
+import { useAuth } from "./use-auth";
+import { apiRequest } from "@/lib/queryClient";
+
 export function LocationProvider({ children }: { children: ReactNode }) {
-    const [location, setLocation] = useState<GlobalLocation>(GLOBAL_LOCATIONS[3]); // Default Coimbatore
+    const { user } = useAuth();
+    const [location, setLocationState] = useState<GlobalLocation>(GLOBAL_LOCATIONS[3]); // Default Coimbatore
+
+    // Persist to state and backend
+    const setLocation = (newLoc: GlobalLocation) => {
+        setLocationState(newLoc);
+        if (user) {
+            // Silently update background settings
+            apiRequest("POST", "/api/user-settings", {
+                user_id: user.id,
+                selected_city: newLoc.city,
+                latitude: newLoc.lat,
+                longitude: newLoc.lon
+            }).catch(err => console.error("Failed to save location", err));
+        }
+    };
+
+    // Load user's saved location on sign in
+    useEffect(() => {
+        if (user) {
+            fetch(`/api/user-settings/${user.id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.selected_city) {
+                        const savedLoc = GLOBAL_LOCATIONS.find(l => l.city === data.selected_city);
+                        if (savedLoc) setLocationState(savedLoc);
+                    }
+                })
+                .catch(err => console.error("Failed to load user settings", err));
+        }
+    }, [user]);
 
     return (
         <LocationContext.Provider value={{ location, setLocation }}>

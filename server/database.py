@@ -4,18 +4,38 @@ import os
 
 # Use the existing DATABASE_URL or default to a local sqlite instance
 # Ensure the DATABASE_URL is correct for the user's environment
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./aerosense_db.sqlite")
+# Database URLs
+USER_DATABASE_URL = "sqlite:///./user_db.sqlite"
+ADMIN_DATABASE_URL = "sqlite:///./admin_db.sqlite"
 
-# SQLAlchemy setup
-# check_same_thread is needed for SQLite
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Engines
+user_engine = create_engine(USER_DATABASE_URL, connect_args={"check_same_thread": False})
+admin_engine = create_engine(ADMIN_DATABASE_URL, connect_args={"check_same_thread": False})
+
+# Sessions
+UserSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=user_engine)
+AdminSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=admin_engine)
 
 Base = declarative_base()
 
-# Dependency to get the database session
+# Dependencies
+def get_user_db():
+    db = UserSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def get_admin_db():
+    db = AdminSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# For backwards compatibility with get_db
 def get_db():
-    db = SessionLocal()
+    db = UserSessionLocal()
     try:
         yield db
     finally:

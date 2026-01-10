@@ -2,6 +2,36 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime
 
+# User Schemas
+class UserBase(BaseModel):
+    username: str
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+class UserCreate(UserBase):
+    pass
+
+class User(UserBase):
+    id: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Admin Schemas
+class AdminBase(BaseModel):
+    username: str
+
+class AdminCreate(AdminBase):
+    password: str
+
+class Admin(AdminBase):
+    id: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 # User Settings Schemas
 class UserSettingsBase(BaseModel):
     selected_city: str = "Coimbatore"

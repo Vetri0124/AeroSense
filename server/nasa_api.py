@@ -46,8 +46,8 @@ def get_live_data(lat: float, lon: float):
         return {
             "temperature": result.get("T2M") if result.get("T2M") is not None else 28,
             "humidity": result.get("RH2M") if result.get("RH2M") is not None else 60,
-            "solar_irradiance": result.get("ALLSKY_SFC_SW_DWN", 0),
-            "uv_index": result.get("ALLSKY_SFC_SW_DWN", 0) / 25, # Rough approx if UV not available directly
+            "solar_irradiance": result.get("ALLSKY_SFC_SW_DWN", 0) if result.get("ALLSKY_SFC_SW_DWN") is not None else 0,
+            "uv_index": (result.get("ALLSKY_SFC_SW_DWN", 0) / 25) if result.get("ALLSKY_SFC_SW_DWN") is not None else 0, # Rough approx
             "aqi": 50 # NASA Power doesn't give AQI, we might keep this mocked or find another source later
         }
 

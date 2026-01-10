@@ -38,28 +38,28 @@ export const calculatePersonalRisk = (aqi: number, conditions: HealthConditions)
         return {
             level: "Critical",
             score: Math.min(finalScore, 100),
-            description: "Severe risk. Avoid all outdoor activity. Ensure indoor air purification is active.",
+            description: "Risk is very high. Please stay indoors and keep windows closed.",
             color: "#ef4444"
         };
     } else if (finalScore > 60) {
         return {
             level: "High",
             score: finalScore,
-            description: "Significant risk for your profile. Limit outdoor exposure and wear a N95 mask.",
+            description: "Risk is high for you. We recommend staying indoors or wearing a mask if you go out.",
             color: "#f97316"
         };
     } else if (finalScore > 30) {
         return {
             level: "Moderate",
             score: finalScore,
-            description: "Some risk detected. Monitor symptoms and avoid prolonged heavy exertion.",
+            description: "There's some risk. Try not to over-exert yourself outdoors.",
             color: "#eab308"
         };
     } else {
         return {
             level: "Low",
             score: finalScore,
-            description: "Atmospheric conditions are safe for your health profile.",
+            description: "The air is safe for you right now. Enjoy your day!",
             color: "#10b981"
         };
     }
@@ -115,31 +115,31 @@ export const getIntelligentRecommendations = (
     // Threshold based
     if (aqi > 100) {
         recommendations.push({
-            title: "Active Filtration",
-            advice: "Indoor AQI likely rising. Enable HEPA filtration systems in living areas.",
+            title: "Check Indoor Air",
+            advice: "The air inside might be getting dusty. Turn on your air purifier if you have one.",
             priority: 1
         });
     }
 
     if (weather.humidity > 80 && aqi > 50) {
         recommendations.push({
-            title: "Humidity Interaction",
-            advice: "High humidity is trapping particulates closer to ground level. Air weight is high.",
+            title: "Humidity Alert",
+            advice: "High humidity can keep pollution near the ground, making the air feel heavy.",
             priority: 2
         });
     }
 
     if (weather.uvIndex > 7) {
         recommendations.push({
-            title: "Ozone Precursor Warning",
-            advice: "High UV levels are catalyzing ground-level ozone formation. Avoid afternoon sun.",
+            title: "Sunlight Alert",
+            advice: "High sunlight can increase smog. Try to stay in the shade this afternoon.",
             priority: 1
         });
     }
 
     if (risk.level === "High" || risk.level === "Critical") {
         recommendations.push({
-            title: "Personal Lockdown",
+            title: "Stay Indoors",
             advice: risk.description,
             priority: 0
         });

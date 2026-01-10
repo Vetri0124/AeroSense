@@ -7,6 +7,23 @@ import uuid
 def generate_uuid():
     return str(uuid.uuid4())
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    username = Column(String, unique=True, nullable=False)
+    full_name = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Admin(Base):
+    __tablename__ = "admins"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    username = Column(String, unique=True, nullable=False)
+    password = Column(String, nullable=False) # Simple password for now
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 class UserSettings(Base):
     __tablename__ = "user_settings"
 

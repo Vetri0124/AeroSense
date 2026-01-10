@@ -40,72 +40,71 @@ export default function Simulation() {
   return (
     <Layout>
       <div className="space-y-12 pb-32">
-        <header className="border-b border-white/5 pb-10">
-          <div className="flex items-center gap-3 mb-4">
-            <Activity className="h-5 w-5 text-primary animate-pulse" />
-            <span className="text-[10px] font-black text-primary uppercase tracking-[0.5em]">Scenario Modeling Engine</span>
+        <header className="border-b border-white/5 pb-8 md:pb-10">
+          <div className="flex items-center gap-2 mb-3 md:mb-4">
+            <Activity className="h-4 w-4 md:h-5 md:w-5 text-primary animate-pulse" />
+            <span className="text-[10px] uppercase font-black tracking-widest text-primary/70">Predictive Modeling</span>
           </div>
-          <h1 className="text-5xl font-heading font-black text-white glow-text tracking-tighter uppercase leading-none mb-6">What-If Simulation</h1>
-          <p className="text-gray-400 text-lg max-w-3xl leading-relaxed italic">
-            Modeling atmospheric flux for <span className="text-white font-black">{location.city}, {location.country}</span>.
-            Adjust the array parameters to audit predictive AQI shifts.
+          <h1 className="text-4xl md:text-5xl font-heading font-black text-white glow-text tracking-tighter uppercase leading-none mb-4 md:mb-6">Simulation</h1>
+          <p className="text-gray-400 text-sm md:text-lg max-w-3xl leading-relaxed italic">
+            Analyze how environmental factors affect <span className="text-white font-black">{location.city}</span>.
           </p>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12">
           {/* Controls Panel */}
-          <div className="lg:col-span-12 xl:col-span-7 space-y-8">
-            <div className="glass-panel p-10 rounded-[3rem] border border-white/10 space-y-10 bg-black/30 shadow-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <div className="bg-primary/20 p-3 rounded-2xl border border-primary/30 text-primary">
-                    <Wind className="h-6 w-6" />
+          <div className="lg:col-span-12 xl:col-span-7 space-y-6 md:space-y-8">
+            <div className="glass-panel p-6 md:p-10 rounded-[2rem] md:rounded-[3.5rem] border border-white/10 space-y-8 md:space-y-10 bg-black/30 shadow-2xl">
+              <div className="flex items-center justify-between mb-2 md:mb-4">
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="bg-primary/20 p-2 md:p-3 rounded-xl md:rounded-2xl border border-primary/30 text-primary">
+                    <Wind className="h-5 w-5 md:h-6 md:w-6" />
                   </div>
-                  <h3 className="text-2xl font-heading font-black text-white uppercase tracking-tighter">Planetary Inputs</h3>
+                  <h3 className="text-xl md:text-2xl font-heading font-black text-white uppercase tracking-tighter">Constants</h3>
                 </div>
                 <Button variant="outline" size="sm" onClick={reset} className="rounded-xl border-white/10 hover:bg-white/5 uppercase text-[9px] font-black tracking-widest h-10 px-6">
-                  <RotateCcw className="h-3 w-3 mr-2" /> Reset Array
+                  <RotateCcw className="h-3 w-3 mr-2" /> Reset
                 </Button>
               </div>
 
               <ControlRow
-                label="Wind Velocity"
+                label="Wind Speed"
                 value={windSpeed}
                 setValue={setWindSpeed}
                 min={0}
                 max={50}
                 unit="km/h"
-                desc="Higher speeds induce atmospheric ventilation and pollutant dispersion."
+                desc="Higher speeds help blow away pollutants and clean the air."
               />
 
               <ControlRow
-                label="Hydraulic Washout"
+                label="Rain"
                 value={rainChance}
                 setValue={setRainChance}
                 min={0}
                 max={100}
                 unit="%"
-                desc="Precipitation effectively cleanses particulate matter from the lower troposphere."
+                desc="Rain showers effectively clear dust and pollution from the air we breathe."
               />
 
               <ControlRow
-                label="Thermal Gradient"
+                label="Temperature"
                 value={temp}
                 setValue={setTemp}
                 min={0}
                 max={50}
                 unit="°C"
-                desc="Heat peaks catalyze photochemical smog and ground-level ozone formation."
+                desc="High heat can increase smog and lower air quality."
               />
 
               <ControlRow
-                label="Anthropogenic Load"
+                label="Traffic"
                 value={traffic}
                 setValue={setTraffic}
                 min={0}
                 max={100}
                 unit="%"
-                desc="High traffic density correlates with exponential NO2 and PM2.5 bleed."
+                desc="More cars on the road leads to higher pollution levels from exhaust."
               />
             </div>
           </div>
@@ -127,10 +126,9 @@ export default function Simulation() {
                 </div>
 
                 <div className="space-y-6 max-w-sm">
-                  <h4 className="text-3xl font-heading font-black text-white uppercase tracking-tighter">Model Forecast</h4>
+                  <h4 className="text-3xl font-heading font-black text-white uppercase tracking-tighter">Prediction Results</h4>
                   <p className="text-gray-500 text-sm leading-relaxed italic">
-                    "Under these parameters, {location.city}'s atmosphere will reach a <span style={{ color }} className="font-bold uppercase tracking-widest">{level}</span> state.
-                    Mitigation protocols are {predictedAQI > 100 ? 'REQUIRED' : 'NOT REQUIRED'} within 24 hours of array stabilization."
+                    "Based on these settings, the air quality in {location.city} would be <span style={{ color }} className="font-bold uppercase tracking-widest">{level}</span>."
                   </p>
                 </div>
               </div>

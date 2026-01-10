@@ -4,3 +4,23 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Electron build artifacts
+release
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.zip
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.db
+*.sqlite
+
+# OS
+Thumbs.db
+.DS_Store
