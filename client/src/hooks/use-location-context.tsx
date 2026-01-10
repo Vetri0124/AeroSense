@@ -51,7 +51,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     // Load user's saved location on sign in
     useEffect(() => {
         if (user) {
-            fetch(`/api/user-settings/${user.id}`)
+            apiRequest("GET", "/api/user-settings")
                 .then(res => res.json())
                 .then(data => {
                     if (data && data.selected_city) {

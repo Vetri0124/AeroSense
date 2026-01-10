@@ -61,7 +61,7 @@ class UserSettingsBase(BaseModel):
     preferences: Optional[Dict[str, Any]] = {}
 
 class UserSettingsCreate(UserSettingsBase):
-    user_id: str
+    user_id: Optional[str] = None
 
 class UserSettings(UserSettingsBase):
     id: str

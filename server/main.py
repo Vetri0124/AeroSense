@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
-from typing import List
+from typing import List, Optional
 from datetime import timedelta
 import crud, models, schemas
 from database import Base, get_db, get_user_db, get_admin_db, user_engine, admin_engine
@@ -55,8 +55,14 @@ app = FastAPI(lifespan=lifespan)
 # CORS configuration
 origins = [
     "http://localhost:5000",
-    "http://localhost:5173", # Vite dev server
-    "http://0.0.0.0:5000"
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
 ]
 
 app.add_middleware(
@@ -93,12 +99,20 @@ def register(user: schemas.UserRegister, db: Session = Depends(get_user_db)):
         )
     
     # Create new user
-    new_user = crud.create_user(db=db, user=user)
+    try:
+        new_user = crud.create_user(db=db, user=user)
+        print(f"Successfully registered new user: {new_user.username} ({new_user.id})")
+    except Exception as e:
+        print(f"Registration error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating account: {str(e)}"
+        )
     
     # Create access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": new_user.id},
+        data={"sub": str(new_user.id)},
         expires_delta=access_token_expires
     )
     
@@ -111,9 +125,18 @@ def register(user: schemas.UserRegister, db: Session = Depends(get_user_db)):
 @app.post("/api/auth/login", response_model=schemas.Token)
 def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_user_db)):
     """Login with email and password"""
-    user = crud.authenticate_user(db, email=user_credentials.email, password=user_credentials.password)
+    user = crud.get_user_by_email(db, email=user_credentials.email)
     
     if not user:
+        print(f"Login failed: User with email {user_credentials.email} not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not verify_password(user_credentials.password, user.password_hash):
+        print(f"Login failed: Incorrect password for {user_credentials.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -123,7 +146,7 @@ def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_user_db
     # Create access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.id},
+        data={"sub": str(user.id)},
         expires_delta=access_token_expires
     )
     
@@ -182,12 +205,15 @@ def get_admin_stats(db: Session = Depends(get_user_db)):
 
 # ============ USER SETTINGS ROUTES (PROTECTED) ============
 
+@app.get("/api/user-settings/{user_id}", response_model=schemas.UserSettings)
 @app.get("/api/user-settings", response_model=schemas.UserSettings)
 def read_user_settings(
+    user_id: Optional[str] = None,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_user_db)
 ):
     """Get current user's settings"""
+    # Use authenticated user's ID
     settings = crud.get_user_settings(db, user_id=current_user.id)
     if settings is None:
         # Return default settings if not found
