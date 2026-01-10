@@ -8,7 +8,7 @@ from datetime import timedelta
 import crud, models, schemas
 from database import Base, get_db, get_user_db, get_admin_db, user_engine, admin_engine
 import nasa_api
-from auth import create_access_token, get_current_user, get_current_user_optional, ACCESS_TOKEN_EXPIRE_MINUTES
+from auth import create_access_token, verify_password, get_current_user, get_current_user_optional, ACCESS_TOKEN_EXPIRE_MINUTES
 
 from contextlib import asynccontextmanager
 
