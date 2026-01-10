@@ -17,7 +17,8 @@ export default defineConfig({
     },
     root: path.resolve(__dirname),
     build: {
-        outDir: path.resolve(__dirname, "..", "dist", "public"),
+        // Build into a local dist directory for Netlify compatibility
+        outDir: path.resolve(__dirname, "dist"),
         emptyOutDir: true,
     },
     server: {

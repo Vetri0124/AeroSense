@@ -54,8 +54,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # CORS configuration
-# In production, allow all for simpler deployment, or add specific Vercel domains
-if os.environ.get("VERCEL") or os.environ.get("NODE_ENV") == "production":
+# In production, allow all for simpler deployment, or add specific Vercel/Render domains
+if os.environ.get("VERCEL") or os.environ.get("RENDER") or os.environ.get("NODE_ENV") == "production":
     origins = ["*"]
 else:
     origins = [
