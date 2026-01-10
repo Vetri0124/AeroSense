@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import { OrbMenu } from "./orb-menu";
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout({ children, fullWidth = false }: { children: React.ReactNode, fullWidth?: boolean }) {
   const { user } = useAuth();
 
   return (
@@ -26,31 +26,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="pointer-events-auto flex items-center gap-2 md:gap-4">
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10">
             <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[8px] text-green-400 font-mono tracking-wider uppercase">Online</span>
+            <span className="text-[8px] text-green-400 font-mono tracking-wider uppercase">Authenticated</span>
           </div>
 
-          {user ? (
-            <Link href="/profile">
-              <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-md cursor-pointer hover:bg-primary/20 transition-all">
-                <span className="text-[9px] md:text-[10px] font-black text-primary uppercase tracking-widest hidden xs:inline">{user.username}</span>
-                <div className="h-6 w-6 md:h-7 md:w-7 rounded-lg bg-primary/20 flex items-center justify-center text-[9px] md:text-[10px] font-black text-primary border border-primary/30">
-                  {user.username[0].toUpperCase()}
+          {user && (
+            <div className="flex items-center gap-2">
+              <Link href="/profile">
+                <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-md cursor-pointer hover:bg-primary/20 transition-all">
+                  <span className="text-[9px] md:text-[10px] font-black text-primary uppercase tracking-widest hidden xs:inline">{user.email}</span>
+                  <div className="h-6 w-6 md:h-7 md:w-7 rounded-lg bg-primary/20 flex items-center justify-center text-[9px] md:text-[10px] font-black text-primary border border-primary/30">
+                    {user.username[0].toUpperCase()}
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ) : (
-            <Link href="/profile">
-              <div className="px-3 md:px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md cursor-pointer hover:bg-white/10 transition-all">
-                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest">Sign In</span>
-              </div>
-            </Link>
+              </Link>
+            </div>
           )}
         </div>
       </header>
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-x-hidden pt-20 md:pt-28 pb-32 md:pb-40 relative z-10 w-full overflow-y-auto overflow-x-hidden scrollbar-none">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8">
+        <div className={cn("mx-auto", fullWidth ? "w-full max-w-none px-0" : "max-w-[1400px] px-4 md:px-6 lg:px-8")}>
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}

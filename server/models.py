@@ -12,8 +12,11 @@ class User(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     username = Column(String, unique=True, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
     avatar_url = Column(String, nullable=True)
+    is_active = Column(Integer, default=1)  # 1 = active, 0 = inactive
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Admin(Base):

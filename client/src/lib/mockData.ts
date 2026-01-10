@@ -115,7 +115,7 @@ export const generateAnnualReportData = (base?: number) => {
       pm25: Math.round(baseAQI * 0.6),
       pm10: Math.round(baseAQI * 0.8),
       co2: Math.round(380 + Math.random() * 40 + (11 - i) * 2),
-      compliance: Math.random() > 0.3 ? "PASSED" : "REVIEW"
+      compliance: baseAQI <= 60 ? "PASSED" : "REVIEW"
     });
   }
   return data;

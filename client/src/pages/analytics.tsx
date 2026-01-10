@@ -5,7 +5,8 @@ import {
   generateHistoricalData,
   generateGlobalHubsData,
   generateCarbonTrend,
-  generateAnnualReportData
+  generateAnnualReportData,
+  getAQILevel
 } from "@/lib/mockData";
 import {
   Calendar,
@@ -22,7 +23,9 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
-  Heart
+  Heart,
+  Navigation,
+  MapPin
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
@@ -47,6 +50,7 @@ import {
   Cell
 } from 'recharts';
 import { useLocation, GLOBAL_LOCATIONS } from "@/hooks/use-location-context";
+import { cn } from "@/lib/utils";
 
 function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
   const map = useMap();
@@ -55,6 +59,253 @@ function MapController({ center, zoom }: { center: [number, number], zoom: numbe
   }, [center, zoom, map]);
   return null;
 }
+
+// Standard AQI Colors Helper
+const getStandardAQIColor = (aqi: number) => {
+  if (aqi <= 50) return "#00E400"; // Green
+  if (aqi <= 100) return "#FFFF00"; // Yellow
+  if (aqi <= 150) return "#FF7E00"; // Orange
+  if (aqi <= 200) return "#FF0000"; // Red
+  if (aqi <= 300) return "#8F3F97"; // Purple
+  return "#7E0023"; // Maroon
+};
+
+const HubMap = ({
+  selectedLocation,
+  setSelectedLocation,
+  activeLayer,
+  setActiveLayer,
+  mapZoom,
+  setMapZoom,
+  heatmapPoints,
+  showTerminal,
+  legendExpanded,
+  setLegendExpanded
+}: any) => {
+  const [mapStyle, setMapStyle] = useState<"light" | "normal" | "satellite">("normal");
+
+  const MAP_TILES = {
+    light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    normal: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+    satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+  };
+
+  return (
+    <div className="relative rounded-[2rem] md:rounded-[3.5rem] overflow-hidden border border-black/5 shadow-2xl bg-white">
+      {/* HUD Top Bar */}
+      <div className="absolute top-0 left-0 right-0 z-[400] p-4 md:p-10 bg-gradient-to-b from-white/90 via-white/40 to-transparent flex flex-col md:flex-row justify-between items-start gap-4 md:gap-8 pointer-events-none">
+        <div className="flex items-center gap-4 md:gap-6 pointer-events-none">
+          <div className="h-10 w-10 md:h-16 md:w-16 rounded-xl md:rounded-3xl bg-primary/10 flex items-center justify-center border border-primary/20 text-primary backdrop-blur-xl shadow-xl">
+            <Globe className="h-5 w-5 md:h-8 md:w-8 animate-spin-slow" />
+          </div>
+          <div className="pointer-events-none">
+            <h2 className="text-xl md:text-4xl font-heading font-black text-black leading-none uppercase tracking-tighter mb-1">Live Sector Analysis</h2>
+            <div className="flex items-center gap-2">
+              <span className="px-1.5 py-0.5 bg-green-500/10 text-green-600 text-[6px] md:text-[8px] font-bold rounded uppercase tracking-widest border border-green-500/20">Sync Level: High Precision</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="pointer-events-auto flex flex-col items-end gap-3">
+          <div className="flex bg-white/80 backdrop-blur-xl p-1 rounded-xl border border-black/5 shadow-xl">
+            <button
+              onClick={() => setMapStyle("normal")}
+              className={cn("px-4 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all", mapStyle === "normal" ? "bg-primary text-black" : "text-gray-500 hover:text-black")}
+            >Standard</button>
+            <button
+              onClick={() => setMapStyle("light")}
+              className={cn("px-4 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all", mapStyle === "light" ? "bg-primary text-black" : "text-gray-500 hover:text-black")}
+            >Clean White</button>
+            <button
+              onClick={() => setMapStyle("satellite")}
+              className={cn("px-4 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all", mapStyle === "satellite" ? "bg-primary text-black" : "text-gray-500 hover:text-black")}
+            >Satellite</button>
+          </div>
+
+          <div className="flex items-center gap-1 md:gap-2 p-1.5 bg-white/80 backdrop-blur-3xl border border-black/5 rounded-2xl shadow-xl max-w-full overflow-x-auto no-scrollbar">
+            {GLOBAL_LOCATIONS.map((loc) => (
+              <button
+                key={loc.city}
+                onClick={() => setSelectedLocation(loc)}
+                className={`px-4 md:px-6 py-2 md:py-3 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${selectedLocation.city === loc.city
+                  ? "bg-primary text-black shadow-lg"
+                  : "text-gray-500 hover:text-black"
+                  }`}
+              >
+                {loc.city}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="h-[400px] md:h-[800px] w-full relative bg-gray-100">
+        <MapContainerAny
+          center={[selectedLocation.lat, selectedLocation.lon]}
+          zoom={13}
+          style={{ height: "100%", width: "100%", background: "#f3f4f6" }}
+          scrollWheelZoom={true}
+          zoomControl={false}
+        >
+          <MapController center={[selectedLocation.lat, selectedLocation.lon]} zoom={mapZoom} />
+          <TileLayerAny
+            attribution='&copy; AeroSense'
+            url={MAP_TILES[mapStyle]}
+          />
+
+          {heatmapPoints.map((p: any) => {
+            let color = '#00ffd5';
+            let opacity = 0.25; // Adjusted down for better balance
+            let radius = 40;
+
+            if (activeLayer === "risk") {
+              color = p.intensity > 60 ? '#ef4444' : p.intensity > 30 ? '#f97316' : '#10b981';
+              opacity = 0.2;
+              radius = 55;
+            } else if (activeLayer === "wind") {
+              color = p.intensity > 70 ? '#3b82f6' : p.intensity > 40 ? '#60a5fa' : '#93c5fd';
+              opacity = 0.18;
+              radius = 45;
+            } else if (activeLayer === "solar") {
+              color = p.intensity > 70 ? '#e879f9' : p.intensity > 40 ? '#f472b6' : '#fb7185';
+              opacity = 0.18;
+              radius = 50;
+            } else {
+              // AQI Layer - Balanced Visibility
+              const aqiVal = p.intensity * 2.5;
+              color = getStandardAQIColor(aqiVal);
+              opacity = 0.28; // Toned down from 0.45
+              radius = 45;
+            }
+
+            return (
+              <CircleMarkerAny
+                key={p.id}
+                center={[p.lat, p.lng]}
+                radius={radius}
+                pathOptions={{
+                  fillColor: color,
+                  fillOpacity: opacity,
+                  stroke: false,
+                }}
+              />
+            );
+          })}
+
+          <CircleMarkerAny center={[selectedLocation.lat, selectedLocation.lon]} radius={15} pathOptions={{ color: '#00ffff', fillColor: '#00ffff', fillOpacity: 0.8, weight: 15, opacity: 0.1 }}>
+            <PopupAny className="glass-popup">
+              <div className="p-6 w-[260px] bg-white/95 backdrop-blur-3xl border border-black/5 rounded-[2rem] text-black">
+                <div className="flex items-center gap-2 mb-4 border-b border-black/10 pb-4">
+                  <Activity className="h-5 w-5 text-primary" />
+                  <h4 className="font-heading font-black text-2xl text-black uppercase tracking-tighter leading-none">{selectedLocation.city} Hub</h4>
+                </div>
+                <div className="space-y-6">
+                  <div className="flex justify-between items-end">
+                    <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Air Status</span>
+                    <span className="text-4xl font-black text-primary leading-none glow-text">{selectedLocation.aqiBase + 10}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-black/5 rounded-2xl border border-black/5">
+                      <p className="text-[8px] text-gray-400 uppercase font-black mb-1">Level</p>
+                      <p className="text-[10px] font-mono font-bold" style={{ color: getStandardAQIColor(selectedLocation.aqiBase) }}>{getAQILevel(selectedLocation.aqiBase).toUpperCase()}</p>
+                    </div>
+                    <div className="p-3 bg-black/5 rounded-2xl border border-black/5">
+                      <p className="text-[8px] text-gray-400 uppercase font-black mb-1">Status</p>
+                      <p className="text-[10px] font-mono font-bold text-primary">SECURE</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </PopupAny>
+          </CircleMarkerAny>
+        </MapContainerAny>
+      </div>
+
+      {/* HUD Controls Bottom LEFT */}
+      <div className="absolute bottom-12 left-12 z-[400] flex gap-6 items-end">
+        <div className="glass-panel p-3 rounded-[2.5rem] border border-black/5 flex flex-col gap-3 shadow-2xl bg-white/80 backdrop-blur-3xl">
+          <HUDButton icon={Globe} active={activeLayer === "aqi"} onClick={() => setActiveLayer("aqi")} label="AQI" />
+          <HUDButton icon={WindIcon} active={activeLayer === "wind"} onClick={() => setActiveLayer("wind")} label="Wind" />
+          <HUDButton icon={Sun} active={activeLayer === "solar"} onClick={() => setActiveLayer("solar")} label="UV" />
+          <HUDButton icon={Heart} active={activeLayer === "risk"} onClick={() => setActiveLayer("risk")} label="Risk" />
+          <div className="h-px bg-black/5 mx-3 my-1" />
+          <button onClick={() => setMapZoom((z: number) => Math.min(18, z + 1))} className="w-14 h-14 rounded-3xl flex items-center justify-center text-gray-400 hover:text-black hover:bg-black/5 transition-all font-black text-2xl">+</button>
+          <button onClick={() => setMapZoom((z: number) => Math.max(3, z - 1))} className="w-14 h-14 rounded-3xl flex items-center justify-center text-gray-400 hover:text-black hover:bg-black/5 transition-all font-black text-2xl">-</button>
+        </div>
+
+        <AnimatePresence>
+          {showTerminal && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, x: -30 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.95, x: -30 }}
+              className="glass-panel w-80 h-48 rounded-[2rem] border border-black/5 overflow-hidden bg-white/90 shadow-2xl backdrop-blur-3xl"
+            >
+              <div className="px-5 py-3 border-b border-black/5 flex justify-between items-center bg-gray-50/50">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  <span className="text-[9px] font-mono text-gray-600 font-black uppercase tracking-[0.3em]">Pulse Stream</span>
+                </div>
+                <Zap className="h-3 w-3 text-primary" />
+              </div>
+              <div className="p-5 font-mono text-[9px] text-gray-400 overflow-hidden space-y-2">
+                <p className="text-primary italic">{"[SYS] CONNECTED: Sector " + selectedLocation.city}</p>
+                <p className="text-green-600 font-black">STABLE LINK // T-LAT: 0.042ms</p>
+                <div className="h-px bg-black/5 my-2" />
+                <p className="text-black uppercase font-bold tracking-tighter leading-none opacity-80 font-heading">SENSING ATMOSPHERE...</p>
+                <p className="opacity-40 font-mono text-[7px] truncate lowercase italic">transmitting_hex_data_stream_0xAF4412BC4299FE0011AABB</p>
+                <p className="text-secondary animate-pulse font-bold tracking-widest mt-2 uppercase">!! PM2.5 Variance Detected</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="absolute bottom-12 right-12 z-[400]">
+        <div className="glass-panel rounded-[3rem] border border-black/5 shadow-2xl backdrop-blur-3xl bg-white/80 overflow-hidden">
+          <button
+            onClick={() => setLegendExpanded(!legendExpanded)}
+            className="w-full p-6 flex items-center justify-between hover:bg-black/5 transition-all"
+          >
+            <div className="flex items-center gap-4">
+              <Shield className="h-6 w-6 text-primary" />
+              <h4 className="text-[11px] font-black uppercase tracking-[0.3em] text-black">Data Map Legend</h4>
+            </div>
+            <motion.div
+              animate={{ rotate: legendExpanded ? 180 : 0 }}
+              transition={{ duration: 0.3 }}
+              className="text-primary"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </motion.div>
+          </button>
+
+          <AnimatePresence>
+            {legendExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="overflow-hidden"
+              >
+                <div className="px-8 pb-8 space-y-6 min-w-[300px]">
+                  <LegendItem color="bg-[#7e0023]" label="Hazardous" value="LEVEL 6" shadow="shadow-md" light />
+                  <LegendItem color="bg-[#ff0000]" label="Unhealthy" value="LEVEL 4" shadow="shadow-md" light />
+                  <LegendItem color="bg-[#ff7e00]" label="Sensitive" value="LEVEL 3" shadow="shadow-md" light />
+                  <LegendItem color="bg-[#ffff00]" label="Moderate" value="LEVEL 2" shadow="shadow-md" light />
+                  <LegendItem color="bg-[#00e400]" label="Good" value="OPTIMAL" shadow="shadow-md" light />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function Analytics() {
   const { location: selectedLocation, setLocation: setSelectedLocation } = useLocation();
@@ -68,13 +319,24 @@ export default function Analytics() {
   const weeklyData = generateHistoricalData(7, selectedLocation.aqiBase);
   const monthlyData = generateHistoricalData(30, selectedLocation.aqiBase);
   const annualData = generateAnnualReportData(selectedLocation.aqiBase);
+  const [analysisPower, setAnalysisPower] = useState(48.2);
+  const [isBoosting, setIsBoosting] = useState(false);
+
+  const boostAnalysis = () => {
+    setIsBoosting(true);
+    setAnalysisPower(98.4);
+    setTimeout(() => {
+      setIsBoosting(false);
+    }, 3000);
+  };
+
   const hubData = generateGlobalHubsData(selectedLocation.city);
   const carbonData = generateCarbonTrend();
 
-  const heatmapPoints = Array.from({ length: 60 }).map((_, idx) => ({
+  const heatmapPoints = Array.from({ length: isBoosting ? 500 : 300 }).map((_, idx) => ({
     id: idx,
-    lat: selectedLocation.lat + (Math.random() - 0.5) * 0.12,
-    lng: selectedLocation.lon + (Math.random() - 0.5) * 0.12,
+    lat: selectedLocation.lat + (Math.random() - 0.5) * 0.25,
+    lng: selectedLocation.lon + (Math.random() - 0.5) * 0.25,
     intensity: Math.random() * 100
   }));
 
@@ -161,16 +423,19 @@ export default function Analytics() {
                 <div className="glass-panel p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-white/5 bg-black/40 shadow-2xl space-y-6 md:space-y-8">
                   <div className="flex items-center gap-3 md:gap-4">
                     <CheckCircle2 className="h-5 w-5 md:h-6 md:w-6 text-primary" />
-                    <h4 className="text-xl md:text-2xl font-heading font-black text-white uppercase tracking-tighter leading-none">Safety Record</h4>
+                    <h4 className="text-xl md:text-2xl font-heading font-black text-white uppercase tracking-tighter leading-none">Community Air History</h4>
                   </div>
                   <div className="space-y-3 md:space-y-4">
                     {annualData.slice(-4).map((month, i) => (
                       <div key={i} className="flex items-center justify-between p-3 md:p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/5">
                         <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">{month.timestamp}</span>
                         <div className="flex items-center gap-3 md:gap-6">
-                          <span className="text-sm md:text-xl font-black text-white">{month.aqi} AQI</span>
+                          <div className="text-right">
+                            <span className="block text-sm md:text-xl font-black text-white">{month.aqi} AQI</span>
+                            <span className="block text-[8px] text-gray-500 font-bold tracking-widest">{month.compliance === "PASSED" ? "OPTIMAL BREATHING" : "MODERATE HAZE"}</span>
+                          </div>
                           <span className={month.compliance === "PASSED" ? "text-[8px] md:text-[9px] font-black text-green-500 bg-green-500/10 px-2 md:px-3 py-1 rounded-full" : "text-[8px] md:text-[9px] font-black text-yellow-500 bg-yellow-500/10 px-2 md:px-3 py-1 rounded-full"}>
-                            {month.compliance === "PASSED" ? "SAFE" : "CAUTION"}
+                            {month.compliance === "PASSED" ? "FRESH & CLEAR" : "A BIT HEAVY"}
                           </span>
                         </div>
                       </div>
@@ -185,15 +450,15 @@ export default function Analytics() {
                   <div className="relative z-10 space-y-6 md:space-y-8">
                     <div className="flex items-center gap-3 md:gap-4">
                       <AlertCircle className="h-5 w-5 md:h-6 md:w-6 text-secondary" />
-                      <h4 className="text-xl md:text-2xl font-heading font-black text-white uppercase tracking-tighter leading-none">Alerts & Notes</h4>
+                      <h4 className="text-xl md:text-2xl font-heading font-black text-white uppercase tracking-tighter leading-none">Local Observations</h4>
                     </div>
                     <div className="space-y-4 md:space-y-6">
                       <p className="text-gray-400 text-[11px] md:text-sm leading-relaxed italic">
-                        "{selectedLocation.city} results show a 14% improvement in air quality. Stabilize nodes in high-density sectors."
+                        "Residents in {selectedLocation.city} noticed significantly clearer sunsets this month. The new 'Green Corridor' expansion is already making the morning air feel crisp and revitalized."
                       </p>
                       <div className="p-4 md:p-6 rounded-xl md:rounded-2xl bg-secondary/5 border border-secondary/20">
-                        <h5 className="text-[9px] md:text-[10px] font-black text-secondary uppercase tracking-widest mb-2">Priority Resolution</h5>
-                        <p className="text-white text-[10px] md:text-xs font-medium">Calibrate node sensitivity during peaks.</p>
+                        <h5 className="text-[9px] md:text-[10px] font-black text-secondary uppercase tracking-widest mb-2">Community Action</h5>
+                        <p className="text-white text-[10px] md:text-xs font-medium">Join the 'Clean Sky' volunteer group this Saturday!</p>
                       </div>
                     </div>
                   </div>
@@ -202,184 +467,18 @@ export default function Analytics() {
             </TabsContent>
 
             <TabsContent value="advanced" className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700">
-              <div className="relative rounded-[2rem] md:rounded-[3.5rem] overflow-hidden border border-white/10 shadow-2xl bg-black/40">
-
-                {/* HUD Top Bar */}
-                <div className="absolute top-0 left-0 right-0 z-[400] p-4 md:p-10 bg-gradient-to-b from-black/90 via-black/40 to-transparent flex flex-col md:flex-row justify-between items-start gap-4 md:gap-8 pointer-events-none">
-                  <div className="flex items-center gap-4 md:gap-6 pointer-events-none">
-                    <div className="h-10 w-10 md:h-16 md:w-16 rounded-xl md:rounded-3xl bg-primary/20 flex items-center justify-center border border-primary/30 text-primary backdrop-blur-xl shadow-2xl">
-                      <Globe className="h-5 w-5 md:h-8 md:w-8 animate-spin-slow" />
-                    </div>
-                    <div className="pointer-events-none">
-                      <h2 className="text-xl md:text-4xl font-heading font-black text-white glow-text leading-none uppercase tracking-tighter mb-1">Global View</h2>
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 bg-red-500/20 text-red-500 text-[6px] md:text-[8px] font-bold rounded uppercase tracking-widest border border-red-500/30">Secure Feed</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pointer-events-auto flex items-center gap-1 md:gap-2 p-1.5 bg-black/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl max-w-full overflow-x-auto no-scrollbar">
-                    {GLOBAL_LOCATIONS.map((loc) => (
-                      <button
-                        key={loc.city}
-                        onClick={() => setSelectedLocation(loc)}
-                        className={`px-4 md:px-6 py-2 md:py-3 rounded-xl md:rounded-2xl text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${selectedLocation.city === loc.city
-                          ? "bg-primary text-black shadow-[0_0_20px_rgba(0,255,255,0.4)]"
-                          : "text-gray-500 hover:text-white"
-                          }`}
-                      >
-                        {loc.city}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="h-[400px] md:h-[800px] w-full relative bg-[#020204]">
-                  <MapContainerAny
-                    center={[selectedLocation.lat, selectedLocation.lon]}
-                    zoom={13}
-                    style={{ height: "100%", width: "100%", background: "#020204" }}
-                    scrollWheelZoom={true}
-                    zoomControl={false}
-                  >
-                    <MapController center={[selectedLocation.lat, selectedLocation.lon]} zoom={mapZoom} />
-                    <TileLayerAny
-                      attribution='&copy; CARTO'
-                      url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                    />
-
-                    {heatmapPoints.map((p) => {
-                      let color = '#00ffd5';
-                      if (activeLayer === "risk") {
-                        color = p.intensity > 60 ? '#ef4444' : p.intensity > 30 ? '#f97316' : '#10b981';
-                      } else {
-                        color = p.intensity > 70 ? '#ff0033' : p.intensity > 40 ? '#ffbb00' : '#00ffd5';
-                      }
-
-                      return (
-                        <CircleMarkerAny
-                          key={p.id}
-                          center={[p.lat, p.lng]}
-                          radius={activeLayer === "risk" ? 60 : 45}
-                          pathOptions={{
-                            fillColor: color,
-                            fillOpacity: activeLayer === "risk" ? 0.15 : 0.1,
-                            stroke: false,
-                          }}
-                        />
-                      );
-                    })}
-
-                    <CircleMarkerAny center={[selectedLocation.lat, selectedLocation.lon]} radius={15} pathOptions={{ color: '#00ffff', fillColor: '#00ffff', fillOpacity: 0.8, weight: 15, opacity: 0.1 }}>
-                      <PopupAny className="glass-popup">
-                        <div className="p-6 w-[260px] bg-black/95 backdrop-blur-3xl border border-white/10 rounded-[2rem] text-white">
-                          <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-4">
-                            <Activity className="h-5 w-5 text-primary animate-pulse" />
-                            <h4 className="font-heading font-black text-2xl text-white uppercase tracking-tighter leading-none">{selectedLocation.city} Hub</h4>
-                          </div>
-                          <div className="space-y-6">
-                            <div className="flex justify-between items-end">
-                              <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Air Health</span>
-                              <span className="text-4xl font-black text-primary leading-none glow-text">{selectedLocation.aqiBase + 10}</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
-                                <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Status</p>
-                                <p className="text-[10px] font-mono font-bold text-green-400">NOMINAL</p>
-                              </div>
-                              <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
-                                <p className="text-[8px] text-gray-500 uppercase font-black mb-1">Array</p>
-                                <p className="text-[10px] font-mono font-bold text-primary">SECURE</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </PopupAny>
-                    </CircleMarkerAny>
-                  </MapContainerAny>
-                </div>
-
-                {/* HUD Controls Bottom LEFT */}
-                <div className="absolute bottom-12 left-12 z-[400] flex gap-6 items-end">
-                  <div className="glass-panel p-3 rounded-[2.5rem] border border-white/10 flex flex-col gap-3 shadow-2xl bg-black/60 backdrop-blur-3xl">
-                    <HUDButton icon={Globe} active={activeLayer === "aqi"} onClick={() => setActiveLayer("aqi")} label="AQI" />
-                    <HUDButton icon={WindIcon} active={activeLayer === "wind"} onClick={() => setActiveLayer("wind")} label="Wind" />
-                    <HUDButton icon={Sun} active={activeLayer === "solar"} onClick={() => setActiveLayer("solar")} label="UV" />
-                    <HUDButton icon={Heart} active={activeLayer === "risk"} onClick={() => setActiveLayer("risk")} label="Risk" />
-                    <div className="h-px bg-white/10 mx-3 my-1" />
-                    <button onClick={() => setMapZoom(z => Math.min(18, z + 1))} className="w-14 h-14 rounded-3xl flex items-center justify-center text-primary/70 hover:text-primary hover:bg-white/10 transition-all font-black text-2xl">+</button>
-                    <button onClick={() => setMapZoom(z => Math.max(3, z - 1))} className="w-14 h-14 rounded-3xl flex items-center justify-center text-primary/70 hover:text-primary hover:bg-white/10 transition-all font-black text-2xl">-</button>
-                  </div>
-
-                  <AnimatePresence>
-                    {showTerminal && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95, x: -30 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, x: -30 }}
-                        className="glass-panel w-80 h-48 rounded-[2rem] border border-white/10 overflow-hidden bg-black/70 shadow-2xl backdrop-blur-3xl"
-                      >
-                        <div className="px-5 py-3 border-b border-white/10 flex justify-between items-center bg-white/5">
-                          <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                            <span className="text-[9px] font-mono text-primary font-black uppercase tracking-[0.3em]">Real-time Updates</span>
-                          </div>
-                          <Zap className="h-3 w-3 text-primary" />
-                        </div>
-                        <div className="p-5 font-mono text-[9px] text-gray-500 overflow-hidden space-y-2">
-                          <p className="text-secondary italic">{"[SYS] HANDSHAKE: Global Node @" + selectedLocation.city}</p>
-                          <p className="text-green-500/60 font-black">LINK ESTABLISHED // T-SEC: 0.042ms</p>
-                          <div className="h-px bg-white/5 my-2" />
-                          <p className="text-white uppercase font-bold tracking-tighter leading-none opacity-80">LOADING DATA...</p>
-                          <p className="opacity-20 font-mono text-[7px] truncate">0xAF 0x44 0x12 0xBC 0x42 0x99 0xFE 0x00 0x11 0xAA 0xBB</p>
-                          <p className="text-yellow-500/80 animate-pulse font-bold tracking-widest mt-2 uppercase">!! Variance Detected in PM2.5 Flux</p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                <div className="absolute bottom-12 right-12 z-[400]">
-                  <div className="glass-panel rounded-[3rem] border border-white/10 shadow-2xl backdrop-blur-3xl bg-black/50 overflow-hidden">
-                    <button
-                      onClick={() => setLegendExpanded(!legendExpanded)}
-                      className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-all"
-                    >
-                      <div className="flex items-center gap-4">
-                        <Shield className="h-6 w-6 text-primary" />
-                        <h4 className="text-[11px] font-black uppercase tracking-[0.3em] text-white">Air Legend</h4>
-                      </div>
-                      <motion.div
-                        animate={{ rotate: legendExpanded ? 180 : 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="text-primary"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </motion.div>
-                    </button>
-
-                    <AnimatePresence>
-                      {legendExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="px-8 pb-8 space-y-6 min-w-[300px]">
-                            <LegendItem color="bg-[#ff0033]" label="Hazardous" value="DANGER" shadow="shadow-[0_0_20px_#ff0033]" />
-                            <LegendItem color="bg-[#ffbb00]" label="Unhealthy" value="CAUTION" shadow="shadow-[0_0_20px_#ffbb00]" />
-                            <LegendItem color="bg-[#00ffd5]" label="Healthy" value="GOOD" shadow="shadow-[0_0_20px_#00ffd5]" />
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              </div>
+              <HubMap
+                selectedLocation={selectedLocation}
+                setSelectedLocation={setSelectedLocation}
+                activeLayer={activeLayer}
+                setActiveLayer={setActiveLayer}
+                mapZoom={mapZoom}
+                setMapZoom={setMapZoom}
+                heatmapPoints={heatmapPoints}
+                showTerminal={showTerminal}
+                legendExpanded={legendExpanded}
+                setLegendExpanded={setLegendExpanded}
+              />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                 <DataPanel
@@ -412,7 +511,11 @@ export default function Analytics() {
                           radius={[6, 6, 0, 0]}
                           fill="url(#barGradient)"
                           barSize={35}
-                        />
+                        >
+                          {hubData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={getStandardAQIColor(entry.aqi)} fillOpacity={0.8} />
+                          ))}
+                        </Bar>
                         <defs>
                           <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.8} />
@@ -465,7 +568,7 @@ export default function Analytics() {
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex items-center gap-3 mt-6 p-4 rounded-2xl bg-secondary/5 border border-secondary/10">
+                  <div className="flex items-center gap-3 mt-6 p-4 rounded-2xl bg-secondary/5 border border-secondary/20">
                     <Shield className="h-4 w-4 text-secondary" />
                     <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest font-bold">Trend: Positive recovery in canopy density within 500km radius.</p>
                   </div>
@@ -475,9 +578,19 @@ export default function Analytics() {
 
             <TabsContent value="daily" className="space-y-12">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <StatCard title="System Load" value="48.2%" trend="none" label="Array Processing" />
-                <StatCard title="Node Sync" value="99.9%" trend="up" label="Active Hubs" />
-                <StatCard title="Satellite Confidence" value="94%" trend="up" label="Optical Resolution" />
+                <div onClick={boostAnalysis} className="cursor-pointer group">
+                  <StatCard
+                    title="Analysis Power"
+                    value={`${analysisPower}%`}
+                    trend={isBoosting ? "up" : "none"}
+                    label={isBoosting ? "Hyper-Mapping Active" : "Cloud Intelligence"}
+                  />
+                  <div className="mt-4 px-6 text-[8px] font-black text-primary uppercase tracking-[0.3em] opacity-0 group-hover:opacity-100 transition-opacity">
+                    Click to Initiate Turbo Sync
+                  </div>
+                </div>
+                <StatCard title="Connectivity" value={isBoosting ? "100%" : "99.9%"} trend="up" label="Global Network" />
+                <StatCard title="Satellite View" value={isBoosting ? "99%" : "94%"} trend="up" label="Precision Level" />
               </div>
               <AnalysisSection title="24-Hour Air Trends" data={dailyData} desc="Tracking air quality changes throughout the day." />
             </TabsContent>
@@ -592,12 +705,12 @@ function DataPanel({ icon: Icon, title, subtitle, color, children }: any) {
   );
 }
 
-function LegendItem({ color, label, shadow, value }: any) {
+function LegendItem({ color, label, shadow, value, light = false }: any) {
   return (
-    <div className="flex items-center justify-between text-[11px] group cursor-default p-2 hover:bg-white/5 rounded-2xl transition-all duration-300">
+    <div className={`flex items-center justify-between text-[11px] group cursor-default p-2 hover:bg-black/5 rounded-2xl transition-all duration-300`}>
       <div className="flex items-center gap-5">
         <div className={`w-4 h-4 rounded-full ${color} ${shadow} transform group-hover:scale-150 transition-transform duration-500`} />
-        <span className="text-gray-400 font-black uppercase tracking-[0.2em]">{label}</span>
+        <span className={cn("font-black uppercase tracking-[0.2em]", light ? "text-gray-600" : "text-gray-400")}>{label}</span>
       </div>
       <span className="text-primary font-mono font-black tracking-widest">{value}</span>
     </div>

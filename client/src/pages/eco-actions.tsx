@@ -6,8 +6,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, getAuthHeaders } from "@/hooks/use-auth";
 
 interface EcoAction {
     id: string;
@@ -34,24 +33,26 @@ export default function EcoActions() {
     });
 
     const { data: userHistory } = useQuery<UserAction[]>({
-        queryKey: ["/api/eco-actions/history", user?.id],
+        queryKey: ["/api/eco-actions/history"],
         queryFn: async () => {
-            const userId = user?.id || "default_user";
-            const res = await fetch(`/api/eco-actions/history?user_id=${userId}`);
+            const res = await fetch(`/api/eco-actions/history`, {
+                headers: getAuthHeaders()
+            });
             return res.json();
         }
     });
 
     const mutation = useMutation({
         mutationFn: async (actionId: string) => {
-            const res = await apiRequest("POST", "/api/eco-actions/complete", {
-                action_id: actionId,
-                user_id: user?.id || "default_user"
+            const res = await fetch(`/api/eco-actions/complete`, {
+                method: "POST",
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ action_id: actionId })
             });
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["/api/eco-actions/history", user?.id] });
+            queryClient.invalidateQueries({ queryKey: ["/api/eco-actions/history"] });
             toast({
                 title: "Action Saved!",
                 description: "Your eco-friendly action has been added to your history.",

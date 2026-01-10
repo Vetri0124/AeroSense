@@ -47,13 +47,19 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
-  /* Custom AQI Colors - Neonized */
-  --color-aqi-good: hsl(150, 100%, 50%);
-  --color-aqi-moderate: hsl(50, 100%, 50%);
+  /* Custom AQI Colors - Standard Standard Mapping */
+  --color-aqi-good: hsl(120, 100%, 45%);
+  /* Green */
+  --color-aqi-moderate: hsl(60, 100%, 50%);
+  /* Yellow */
   --color-aqi-unhealthy-sensitive: hsl(30, 100%, 50%);
-  --color-aqi-unhealthy: hsl(0, 100%, 60%);
-  --color-aqi-very-unhealthy: hsl(280, 100%, 60%);
-  --color-aqi-hazardous: hsl(300, 100%, 50%);
+  /* Orange */
+  --color-aqi-unhealthy: hsl(0, 100%, 50%);
+  /* Red */
+  --color-aqi-very-unhealthy: hsl(280, 100%, 50%);
+  /* Purple */
+  --color-aqi-hazardous: hsl(343, 100%, 25%);
+  /* Maroon */
 
   --font-sans: 'Exo 2', sans-serif;
   --font-heading: 'Orbitron', sans-serif;

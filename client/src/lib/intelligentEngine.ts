@@ -1,11 +1,11 @@
 import { AQILevel, getAQILevel, WeatherData } from "./mockData";
 
 export interface HealthConditions {
-    asthma: boolean;
-    allergies: boolean;
-    heartCondition: boolean;
-    elderly: boolean;
-    children: boolean;
+    sensitiveLungs: boolean;
+    activeLifestyle: boolean;
+    heartVigilant: boolean;
+    seniorCitizen: boolean;
+    parentMode: boolean;
 }
 
 export interface RiskAssessment {
@@ -15,52 +15,62 @@ export interface RiskAssessment {
     color: string;
 }
 
+export interface ActivityGuide {
+    type: "Walking" | "Running" | "Cycling" | "Outdoor Yoga" | "High Intensity";
+    maxDuration: number; // in minutes
+    safetyLevel: "Safe" | "Caution" | "Restricted";
+    advice: string;
+}
+
+export interface PollutantRisk {
+    name: string;
+    value: number;
+    unit: string;
+    impactLevel: number; // 0-100
+    description: string;
+}
+
 export const calculatePersonalRisk = (aqi: number, conditions: HealthConditions): RiskAssessment => {
-    let baseScore = 0;
+    // 1. Initial AQI Component
+    let aqiScore = (aqi / 200) * 85;
 
-    // AQI Base Risk
-    if (aqi > 50) baseScore += 10;
-    if (aqi > 100) baseScore += 20;
-    if (aqi > 150) baseScore += 30;
-    if (aqi > 200) baseScore += 40;
+    // 2. Human-Centric Vulnerability
+    let vulnerabilityBoost = 0;
+    if (conditions.sensitiveLungs) vulnerabilityBoost += 25;
+    if (conditions.heartVigilant) vulnerabilityBoost += 30;
+    if (conditions.seniorCitizen) vulnerabilityBoost += 20;
+    if (conditions.parentMode) vulnerabilityBoost += 15;
+    if (conditions.activeLifestyle && aqi > 50) vulnerabilityBoost += 10; // Active people breathe more air!
 
-    // Condition Multipliers
-    let multiplier = 1.0;
-    if (conditions.asthma) multiplier += 1.5;
-    if (conditions.heartCondition) multiplier += 2.0;
-    if (conditions.elderly) multiplier += 0.5;
-    if (conditions.children) multiplier += 0.5;
-    if (conditions.allergies) multiplier += 0.3;
+    const finalScore = Math.min(aqiScore + vulnerabilityBoost, 100);
 
-    const finalScore = baseScore * multiplier;
-
-    if (finalScore > 100) {
+    if (finalScore >= 80) {
         return {
             level: "Critical",
-            score: Math.min(finalScore, 100),
-            description: "Risk is very high. Please stay indoors and keep windows closed.",
-            color: "#ef4444"
+            score: finalScore,
+            description: "The air today is really tough on your system. It's one of those days to stay cozy indoors with the windows shut. Your health comes first!",
+            color: "#7e0023"
         };
-    } else if (finalScore > 60) {
+    } else if (finalScore >= 60) {
         return {
             level: "High",
             score: finalScore,
-            description: "Risk is high for you. We recommend staying indoors or wearing a mask if you go out.",
-            color: "#f97316"
+            description: "You'll likely feel the " + (aqi > 100 ? "heaviness" : "irritation") + " in the air today. Maybe swap that outdoor run for some indoor stretching? Better safe than sorry.",
+            color: "#ff0000"
         };
-    } else if (finalScore > 30) {
+    } else if (finalScore >= 35) {
         return {
             level: "Moderate",
             score: finalScore,
-            description: "There's some risk. Try not to over-exert yourself outdoors.",
-            color: "#eab308"
+            description: "The air is okay, but you might notice a bit of a tickle if you're out too long. Take it easy and listen to your body.",
+            color: "#ff7e00"
         };
     } else {
         return {
             level: "Low",
             score: finalScore,
-            description: "The air is safe for you right now. Enjoy your day!",
-            color: "#10b981"
+            description: "Beautiful day! The air is clear and perfect for whatever you have planned. Get out there and enjoy!",
+            color: "#00e400"
         };
     }
 };
@@ -146,4 +156,73 @@ export const getIntelligentRecommendations = (
     }
 
     return recommendations.sort((a, b) => a.priority - b.priority);
+};
+
+export const getActivityGuide = (risk: RiskAssessment): ActivityGuide[] => {
+    const guides: ActivityGuide[] = [
+        { type: "Walking", maxDuration: 60, safetyLevel: "Safe", advice: "Enjoy a leisurely walk." },
+        { type: "Running", maxDuration: 45, safetyLevel: "Safe", advice: "Good for cardio today." },
+        { type: "Cycling", maxDuration: 60, safetyLevel: "Safe", advice: "Perfect weather for a ride." },
+        { type: "Outdoor Yoga", maxDuration: 60, safetyLevel: "Safe", advice: "Ideal for deep breathing." },
+        { type: "High Intensity", maxDuration: 30, safetyLevel: "Safe", advice: "Safe for intense training." }
+    ];
+
+    const score = risk.score;
+
+    if (score > 20) {
+        guides.forEach(g => {
+            g.maxDuration = Math.round(g.maxDuration * 0.8);
+            g.safetyLevel = "Caution";
+            g.advice = "Keep it light and take a water break every 15 minutes.";
+        });
+    }
+
+    if (score > 45) {
+        guides.forEach(g => {
+            g.maxDuration = Math.round(g.maxDuration * 0.5);
+            g.safetyLevel = risk.level === "Critical" ? "Restricted" : "Caution";
+            if (g.type === "High Intensity" || g.type === "Running") {
+                g.safetyLevel = "Restricted";
+                g.advice = "The air is a bit thick for high intensity. Maybe try some indoor yoga instead?";
+            } else {
+                g.advice = "A short stroll is fine, but don't push yourself today.";
+            }
+        });
+    }
+
+    if (score > 70) {
+        guides.forEach(g => {
+            g.maxDuration = 0;
+            g.safetyLevel = "Restricted";
+            g.advice = "It's a 'movies and indoor hobbies' kind of day. The air outside is best avoided.";
+        });
+    }
+
+    return guides;
+};
+
+export const getPollutantVulnerability = (weather: WeatherData, conditions: HealthConditions): PollutantRisk[] => {
+    const risks: PollutantRisk[] = [
+        { name: "Fine Dust", value: weather.pm25 || 12, unit: "µg/m³", impactLevel: 20, description: "Tiny invisible particles that can get deep into your lungs." },
+        { name: "Urban Dust", value: weather.pm10 || 24, unit: "µg/m³", impactLevel: 15, description: "Larger particles like pollen and road dust that irritate your throat." },
+        { name: "Summer Smog", value: weather.o3 || 42, unit: "ppb", impactLevel: 10, description: "A gaseous mix that can make it feel a bit harder to take a full breath." },
+        { name: "Traffic Fumes", value: weather.no2 || 18, unit: "ppb", impactLevel: 10, description: "Common around busy roads; it can make lungs feel a bit more sensitive." }
+    ];
+
+    const aqi = weather.aqi;
+
+    risks.forEach(r => {
+        // Condition modifiers - Human Centric
+        if (conditions.sensitiveLungs && (r.name === "Fine Dust" || r.name === "Summer Smog")) r.impactLevel += 40;
+        if (conditions.heartVigilant && r.name === "Fine Dust") r.impactLevel += 50;
+        if (conditions.seniorCitizen && r.name === "Urban Dust") r.impactLevel += 20;
+
+        // AQI modifiers
+        if (aqi > 50) r.impactLevel += 15;
+        if (aqi > 100) r.impactLevel += 30;
+
+        r.impactLevel = Math.min(r.impactLevel, 100);
+    });
+
+    return risks.sort((a, b) => b.impactLevel - a.impactLevel);
 };

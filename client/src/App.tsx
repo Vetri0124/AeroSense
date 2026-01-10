@@ -9,22 +9,55 @@ import Simulation from "@/pages/simulation";
 import Analytics from "@/pages/analytics";
 import EcoActions from "@/pages/eco-actions";
 import HealthGuard from "@/pages/health-guard";
-
+import AuthPage from "@/pages/auth";
 import Profile from "@/pages/profile";
 import AdminLogin from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard";
+import ProtectedRoute from "@/components/protected-route";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/analytics" component={Analytics} />
-      <Route path="/simulation" component={Simulation} />
-      <Route path="/eco-actions" component={EcoActions} />
-      <Route path="/health-guard" component={HealthGuard} />
-      <Route path="/profile" component={Profile} />
+      {/* Public route */}
+      <Route path="/auth" component={AuthPage} />
+
+      {/* Protected routes */}
+      <Route path="/">
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/analytics">
+        <ProtectedRoute>
+          <Analytics />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/simulation">
+        <ProtectedRoute>
+          <Simulation />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/eco-actions">
+        <ProtectedRoute>
+          <EcoActions />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/health-guard">
+        <ProtectedRoute>
+          <HealthGuard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/profile">
+        <ProtectedRoute>
+          <Profile />
+        </ProtectedRoute>
+      </Route>
+
+      {/* Admin routes */}
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
+
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>

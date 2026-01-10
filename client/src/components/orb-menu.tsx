@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     LayoutDashboard,
     LineChart,
+    Map as MapIcon,
     Zap,
     Heart,
     UserCircle,
