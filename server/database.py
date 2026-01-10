@@ -9,6 +9,10 @@ import os
 USER_DATABASE_URL = os.environ.get("DATABASE_URL") or "sqlite:///./user_db.sqlite"
 ADMIN_DATABASE_URL = os.environ.get("ADMIN_DATABASE_URL") or "sqlite:///./admin_db.sqlite"
 
+# Handle Render/Heroku postgres prefix issue (postgres:// -> postgresql://)
+if USER_DATABASE_URL and USER_DATABASE_URL.startswith("postgres://"):
+    USER_DATABASE_URL = USER_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 # Handle Vercel's read-only filesystem by moving SQLite to /tmp if needed
 if os.environ.get("VERCEL") and USER_DATABASE_URL.startswith("sqlite"):
     USER_DATABASE_URL = "sqlite:////tmp/user_db.sqlite"

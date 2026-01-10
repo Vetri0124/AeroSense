@@ -1,5 +1,4 @@
 [build]
-  # If base is set to 'client' in Netlify UI, these paths are relative to 'client/'
   command = "npm run build"
   publish = "dist"
 

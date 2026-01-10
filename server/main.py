@@ -57,6 +57,8 @@ app = FastAPI(lifespan=lifespan)
 # In production, allow all for simpler deployment, or add specific Vercel/Render domains
 if os.environ.get("VERCEL") or os.environ.get("RENDER") or os.environ.get("NODE_ENV") == "production":
     origins = ["*"]
+    # When using wildcard origins, allow_credentials must be False
+    allow_credentials = False
 else:
     origins = [
         "http://localhost:5000",
@@ -69,11 +71,12 @@ else:
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
     ]
+    allow_credentials = True
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -365,5 +368,6 @@ def read_user_actions(
 
 if __name__ == "__main__":
     import uvicorn
-    # Use port 5000 to match the previous Node server behavior
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    # Use PORT from environment for cloud deployments (Render/Vercel)
+    port = int(os.environ.get("PORT", 5000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
