@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 import models
 from database import get_user_db
 
+import os
+
 # Security configuration
-SECRET_KEY = "aerosense-secret-key-change-in-production-2026"  # Change this in production!
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or "aerosense-secret-key-change-in-production-2026"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 

@@ -53,17 +53,21 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # CORS configuration
-origins = [
-    "http://localhost:5000",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-    "http://localhost:5176",
-    "http://127.0.0.1:5000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://127.0.0.1:5175",
-]
+# In production, allow all for simpler deployment, or add specific Vercel domains
+if os.environ.get("VERCEL") or os.environ.get("NODE_ENV") == "production":
+    origins = ["*"]
+else:
+    origins = [
+        "http://localhost:5000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://127.0.0.1:5000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+    ]
 
 app.add_middleware(
     CORSMiddleware,

@@ -5,12 +5,21 @@ import os
 # Use the existing DATABASE_URL or default to a local sqlite instance
 # Ensure the DATABASE_URL is correct for the user's environment
 # Database URLs
-USER_DATABASE_URL = "sqlite:///./user_db.sqlite"
-ADMIN_DATABASE_URL = "sqlite:///./admin_db.sqlite"
+# In production (e.g. Vercel), we should use a real database via DATABASE_URL
+USER_DATABASE_URL = os.environ.get("DATABASE_URL") or "sqlite:///./user_db.sqlite"
+ADMIN_DATABASE_URL = os.environ.get("ADMIN_DATABASE_URL") or "sqlite:///./admin_db.sqlite"
+
+# Handle Vercel's read-only filesystem by moving SQLite to /tmp if needed
+if os.environ.get("VERCEL") and USER_DATABASE_URL.startswith("sqlite"):
+    USER_DATABASE_URL = "sqlite:////tmp/user_db.sqlite"
+    ADMIN_DATABASE_URL = "sqlite:////tmp/admin_db.sqlite"
 
 # Engines
-user_engine = create_engine(USER_DATABASE_URL, connect_args={"check_same_thread": False})
-admin_engine = create_engine(ADMIN_DATABASE_URL, connect_args={"check_same_thread": False})
+# PostgreSQL doesn't need check_same_thread
+connect_args = {"check_same_thread": False} if USER_DATABASE_URL.startswith("sqlite") else {}
+
+user_engine = create_engine(USER_DATABASE_URL, connect_args=connect_args)
+admin_engine = create_engine(ADMIN_DATABASE_URL, connect_args=connect_args)
 
 # Sessions
 UserSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=user_engine)
