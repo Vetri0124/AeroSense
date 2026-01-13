@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import generatedImage from '@assets/generated_images/futuristic_abstract_data_network_globe.png';
 import { useLocation, GLOBAL_LOCATIONS } from "@/hooks/use-location-context";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Dashboard() {
   const { location: selectedCity } = useLocation();
@@ -34,8 +35,7 @@ export default function Dashboard() {
   const { data: weatherData } = useQuery({
     queryKey: ["/api/environment/current", selectedCity.lat, selectedCity.lon],
     queryFn: async () => {
-      const res = await fetch(`/api/environment/current?latitude=${selectedCity.lat}&longitude=${selectedCity.lon}`);
-      if (!res.ok) throw new Error("Failed to fetch weather data");
+      const res = await apiRequest("GET", `/api/environment/current?latitude=${selectedCity.lat}&longitude=${selectedCity.lon}`);
       return res.json();
     }
   });

@@ -24,7 +24,17 @@ import {
   MapPin
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
+import {
+  MapContainer as MapContainerComponent,
+  TileLayer as TileLayerComponent,
+  CircleMarker as CircleMarkerComponent,
+  Popup as PopupComponent,
+  useMap
+} from "react-leaflet";
+const MapContainer = MapContainerComponent as any;
+const TileLayer = TileLayerComponent as any;
+const CircleMarker = CircleMarkerComponent as any;
+const Popup = PopupComponent as any;
 import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -42,6 +52,7 @@ import {
 import { useLocation, GLOBAL_LOCATIONS } from "@/hooks/use-location-context";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueries } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 // Standard AQI Colors Helper
 const getStandardAQIColor = (aqi: number) => {
@@ -343,8 +354,7 @@ export default function Analytics() {
     queries: GLOBAL_LOCATIONS.map(loc => ({
       queryKey: ["/api/environment/current", loc.lat, loc.lon],
       queryFn: async () => {
-        const res = await fetch(`/api/environment/current?latitude=${loc.lat}&longitude=${loc.lon}`);
-        if (!res.ok) throw new Error("Failed up to fetch hub data");
+        const res = await apiRequest("GET", `/api/environment/current?latitude=${loc.lat}&longitude=${loc.lon}`);
         return res.json();
       },
       staleTime: 1000 * 60 * 5,
