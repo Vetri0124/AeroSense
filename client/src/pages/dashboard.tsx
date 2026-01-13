@@ -1,5 +1,5 @@
 import Layout from "@/components/layout";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AQIGauge } from "@/components/aqi-gauge";
 import { TrendChart } from "@/components/trend-chart";
 import {
@@ -16,7 +16,9 @@ import {
   Activity,
   Shield,
   Search,
-  Globe
+  Globe,
+  MapPin,
+  Zap
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -26,8 +28,8 @@ import generatedImage from '@assets/generated_images/futuristic_abstract_data_ne
 import { useLocation, GLOBAL_LOCATIONS } from "@/hooks/use-location-context";
 
 export default function Dashboard() {
-  const { location: selectedCity, setLocation: setSelectedCity } = useLocation();
-  const [showCityPicker, setShowCityPicker] = useState(false);
+  const { location: selectedCity } = useLocation();
+  const queryClient = useQueryClient();
 
   const { data: weatherData } = useQuery({
     queryKey: ["/api/environment/current", selectedCity.lat, selectedCity.lon],
@@ -118,16 +120,22 @@ export default function Dashboard() {
                   Tracking air health across continents in real-time. Global environmental monitoring at your fingertips.
                 </p>
 
-                <div className="flex flex-wrap justify-center md:justify-start gap-3 md:gap-4">
-                  <button className="px-5 md:px-8 py-3 md:py-4 bg-primary text-black font-black uppercase text-[8px] md:text-[10px] tracking-widest rounded-xl md:rounded-2xl shadow-[0_0_20px_rgba(0,255,255,0.4)] hover:scale-105 transition-transform">
-                    Live Sync
-                  </button>
+                <div className="flex flex-wrap justify-center md:justify-start gap-4">
                   <button
-                    onClick={() => setShowCityPicker(!showCityPicker)}
-                    className="px-5 md:px-8 py-3 md:py-4 bg-white/5 border border-white/10 text-white font-black uppercase text-[8px] md:text-[10px] tracking-widest rounded-xl md:rounded-2xl hover:bg-white/10 transition-all flex items-center gap-2 md:gap-3 backdrop-blur-md"
+                    onClick={() => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/environment/current"] });
+                      toast({
+                        title: "Live Sync Initiated",
+                        description: `Synchronizing environmental telemetry for ${selectedCity.city}...`,
+                      });
+                    }}
+                    className="px-5 md:px-8 py-3 md:py-4 bg-primary text-black font-black uppercase text-[8px] md:text-[10px] tracking-widest rounded-xl md:rounded-2xl shadow-[0_0_20px_rgba(0,255,255,0.4)] hover:scale-105 transition-all flex items-center gap-2 group"
                   >
-                    <Search className="h-4 w-4" /> Change City
+                    <Zap className="h-4 w-4 fill-black group-hover:animate-pulse" /> Live Sync
                   </button>
+                  <div className="px-5 md:px-8 py-3 md:py-4 bg-white/5 border border-white/10 text-white font-black uppercase text-[8px] md:text-[10px] tracking-widest rounded-xl md:rounded-2xl backdrop-blur-md flex items-center gap-2">
+                    <MapPin className="h-3 w-3 text-primary animate-pulse" /> Sector {selectedCity.city} Active
+                  </div>
                 </div>
               </motion.div>
             </div>
@@ -167,71 +175,12 @@ export default function Dashboard() {
 
         {/* CITY SEARCH OVERLAY */}
         <AnimatePresence>
-          {showCityPicker && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-background/80 backdrop-blur-xl"
-            >
-              <div className="glass-panel w-full max-w-2xl rounded-[3rem] border border-white/10 p-12 shadow-2xl overflow-hidden relative">
-                <div className="absolute -top-10 -right-10 opacity-5">
-                  <Globe className="w-64 h-64" />
-                </div>
-                <div className="relative z-10">
-                  <h2 className="text-4xl font-heading font-black text-white mb-8 uppercase tracking-tighter">Global Selection</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[350px] overflow-y-auto pr-4 custom-scrollbar">
-                    {GLOBAL_LOCATIONS.map((city) => (
-                      <button
-                        key={city.city}
-                        onClick={() => {
-                          setSelectedCity(city);
-                          setShowCityPicker(false);
-                        }}
-                        className={cn(
-                          "p-6 rounded-2xl border transition-all text-left flex justify-between items-center group",
-                          selectedCity.city === city.city
-                            ? "bg-primary text-black border-primary shadow-[0_0_20px_rgba(0,255,255,0.2)]"
-                            : "bg-white/5 border-white/10 hover:border-white/30 text-white"
-                        )}
-                      >
-                        <div>
-                          <p className="text-lg font-black uppercase leading-none mb-1 font-heading">{city.city}</p>
-                          <p className={cn("text-[9px] font-mono font-bold uppercase tracking-widest", selectedCity.city === city.city ? "text-black/60" : "text-gray-500")}>{city.country}</p>
-                        </div>
-                        <div className={cn("p-2 rounded-xl transition-colors", selectedCity.city === city.city ? "bg-black/10" : "bg-white/5 group-hover:bg-primary group-hover:text-black")}>
-                          <Navigation className="h-4 w-4" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setShowCityPicker(false)}
-                    className="mt-8 w-full py-4 text-[10px] font-black uppercase tracking-[0.4em] text-gray-500 hover:text-white transition-colors"
-                  >
-                    Dismiss Overlay
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
         </AnimatePresence>
 
         {/* DATA GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
           <motion.div variants={item} className="lg:col-span-4 space-y-6 md:space-y-8">
             <AQIGauge value={currentData.aqi} label={aqiLabel} color={aqiColor} />
-            <div className="glass-panel p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-white/10 space-y-6 bg-black/30">
-              <div className="flex items-center gap-3">
-                <Activity className="h-5 w-5 text-primary" />
-                <h4 className="text-[10px] md:text-xs font-black uppercase tracking-widest text-white">System Status</h4>
-              </div>
-              <div className="space-y-4">
-                <SensorProgress label="Connection Speed" value={98} />
-                <SensorProgress label="Data Updates" value={92} />
-                <SensorProgress label="Accuracy" value={99} />
-              </div>
-            </div>
           </motion.div>
 
           <motion.div variants={item} className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">

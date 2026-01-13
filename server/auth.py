@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 import models
-from database import get_user_db
+from database import get_db
 
 import os
 
@@ -51,7 +51,7 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_user_db)
+    db = Depends(get_db)
 ):
     """Dependency to get the current authenticated user"""
     credentials_exception = HTTPException(
@@ -70,7 +70,8 @@ async def get_current_user(
     if user_id is None:
         raise credentials_exception
     
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    import crud
+    user = await crud.get_user(db, user_id=user_id)
     if user is None:
         raise credentials_exception
     
@@ -78,7 +79,7 @@ async def get_current_user(
 
 async def get_current_user_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
-    db: Session = Depends(get_user_db)
+    db = Depends(get_db)
 ):
     """Optional authentication - returns None if no token provided"""
     if credentials is None:
@@ -94,5 +95,6 @@ async def get_current_user_optional(
     if user_id is None:
         return None
     
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    import crud
+    user = await crud.get_user(db, user_id=user_id)
     return user

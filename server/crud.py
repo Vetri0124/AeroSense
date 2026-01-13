@@ -1,133 +1,174 @@
-from sqlalchemy.orm import Session
+from motor.motor_asyncio import AsyncIOMotorDatabase
 import models, schemas
 from auth import get_password_hash, verify_password
+from datetime import datetime
+import uuid
+
+# Helper to convert MongoDB document to Pydantic-friendly dict
+def fix_id(doc):
+    if doc and "_id" in doc:
+        pass 
+    return doc
 
 # Users
-def get_user(db: Session, user_id: str):
-    return db.query(models.User).filter(models.User.id == user_id).first()
+async def get_user(db: AsyncIOMotorDatabase, user_id: str):
+    return await db["users"].find_one({"id": user_id})
 
-def get_user_by_username(db: Session, username: str):
-    return db.query(models.User).filter(models.User.username == username).first()
+async def get_user_by_username(db: AsyncIOMotorDatabase, username: str):
+    return await db["users"].find_one({"username": username})
 
-def get_user_by_email(db: Session, email: str):
-    return db.query(models.User).filter(models.User.email == email).first()
+async def get_user_by_email(db: AsyncIOMotorDatabase, email: str):
+    return await db["users"].find_one({"email": email})
 
-def create_user(db: Session, user: schemas.UserRegister):
+async def create_user(db: AsyncIOMotorDatabase, user: schemas.UserRegister, role: str = "user"):
     hashed_password = get_password_hash(user.password)
-    db_user = models.User(
-        username=user.username,
-        email=user.email,
-        password_hash=hashed_password,
-        full_name=user.full_name
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+    user_dict = {
+        "id": models.generate_uuid(),
+        "username": user.username,
+        "email": user.email,
+        "password_hash": hashed_password,
+        "full_name": user.full_name,
+        "avatar_url": None,
+        "is_active": 1,
+        "role": role,
+        "created_at": datetime.utcnow(),
+        "settings": {
+            "selected_city": user.city,
+            "latitude": user.latitude,
+            "longitude": user.longitude,
+            "preferences": {},
+            "updated_at": datetime.utcnow()
+        },
+        "favorite_locations": [],
+        "simulations": []
+    }
+    await db["users"].insert_one(user_dict)
+    return user_dict
 
-def authenticate_user(db: Session, email: str, password: str):
-    user = get_user_by_email(db, email)
+async def authenticate_user(db: AsyncIOMotorDatabase, email: str, password: str):
+    user = await get_user_by_email(db, email)
     if not user:
         return None
-    if not verify_password(password, user.password_hash):
+    if not verify_password(password, user["password_hash"]):
         return None
-    if user.is_active != 1:
+    if user.get("is_active") != 1:
         return None
     return user
 
-def get_users(db: Session):
-    return db.query(models.User).all()
+async def get_users(db: AsyncIOMotorDatabase):
+    cursor = db["users"].find({})
+    return await cursor.to_list(length=100)
 
-# Admins
-def get_admin_by_username(db: Session, username: str):
-    return db.query(models.Admin).filter(models.Admin.username == username).first()
+# Unified Admin Helpers (Now just filters on users)
+async def get_admin_by_username(db: AsyncIOMotorDatabase, username: str):
+    return await db["users"].find_one({"username": username, "role": "admin"})
 
-def create_admin(db: Session, admin: schemas.AdminCreate):
-    db_admin = models.Admin(
-        username=admin.username,
-        password=admin.password
+async def create_admin(db: AsyncIOMotorDatabase, admin: schemas.AdminLogin):
+    # Admins are created using registration logic but with admin role
+    hashed_password = get_password_hash(admin.password)
+    admin_dict = {
+        "id": models.generate_uuid(),
+        "username": admin.username,
+        "email": f"{admin.username}@aerosense.admin", # Internal placeholder
+        "password_hash": hashed_password,
+        "role": "admin",
+        "is_active": 1,
+        "created_at": datetime.utcnow()
+    }
+    await db["users"].insert_one(admin_dict)
+    return admin_dict
+
+# User Settings (NOW NESTED)
+async def get_user_settings(db: AsyncIOMotorDatabase, user_id: str):
+    user = await get_user(db, user_id)
+    return user.get("settings") if user else None
+
+async def update_user_settings(db: AsyncIOMotorDatabase, user_id: str, settings: schemas.UserSettingsCreate):
+    settings_dict = settings.dict()
+    settings_dict["updated_at"] = datetime.utcnow()
+    
+    await db["users"].update_one(
+        {"id": user_id},
+        {"$set": {"settings": settings_dict}}
     )
-    db.add(db_admin)
-    db.commit()
-    db.refresh(db_admin)
-    return db_admin
+    return settings_dict
 
-# User Settings
-def get_user_settings(db: Session, user_id: str):
-    return db.query(models.UserSettings).filter(models.UserSettings.user_id == user_id).first()
+# Saved Simulations (NOW NESTED)
+async def get_saved_simulations(db: AsyncIOMotorDatabase, user_id: str):
+    user = await get_user(db, user_id)
+    return user.get("simulations", []) if user else []
 
-def create_user_settings(db: Session, settings: schemas.UserSettingsCreate):
-    db_settings = models.UserSettings(**settings.dict())
-    db.add(db_settings)
-    db.commit()
-    db.refresh(db_settings)
-    return db_settings
+async def create_saved_simulation(db: AsyncIOMotorDatabase, simulation: schemas.SavedSimulationCreate, user_id: str):
+    sim_dict = simulation.dict()
+    sim_dict["id"] = models.generate_uuid()
+    sim_dict["created_at"] = datetime.utcnow()
+    
+    await db["users"].update_one(
+        {"id": user_id},
+        {"$push": {"simulations": sim_dict}}
+    )
+    return sim_dict
 
-def update_user_settings(db: Session, user_id: str, settings: schemas.UserSettingsCreate):
-    db_settings = get_user_settings(db, user_id)
-    if db_settings:
-        for key, value in settings.dict().items():
-            setattr(db_settings, key, value)
-        db.commit()
-        db.refresh(db_settings)
-    else:
-        # If not exists, create it (Upsert logic)
-        db_settings = create_user_settings(db, settings)
-    return db_settings
+async def delete_saved_simulation(db: AsyncIOMotorDatabase, simulation_id: str, user_id: str):
+    await db["users"].update_one(
+        {"id": user_id},
+        {"$pull": {"simulations": {"id": simulation_id}}}
+    )
 
-# Saved Simulations
-def get_saved_simulations(db: Session, user_id: str):
-    return db.query(models.SavedSimulation).filter(models.SavedSimulation.user_id == user_id).order_by(models.SavedSimulation.created_at).all()
+# Favorite Locations (NOW NESTED)
+async def get_favorite_locations(db: AsyncIOMotorDatabase, user_id: str):
+    user = await get_user(db, user_id)
+    return user.get("favorite_locations", []) if user else []
 
-def create_saved_simulation(db: Session, simulation: schemas.SavedSimulationCreate):
-    db_simulation = models.SavedSimulation(**simulation.dict())
-    db.add(db_simulation)
-    db.commit()
-    db.refresh(db_simulation)
-    return db_simulation
+async def create_favorite_location(db: AsyncIOMotorDatabase, location: schemas.FavoriteLocationCreate, user_id: str):
+    loc_dict = location.dict()
+    loc_dict["id"] = models.generate_uuid()
+    loc_dict["created_at"] = datetime.utcnow()
+    
+    await db["users"].update_one(
+        {"id": user_id},
+        {"$push": {"favorite_locations": loc_dict}}
+    )
+    return loc_dict
 
-def delete_saved_simulation(db: Session, simulation_id: str, user_id: str):
-    db.query(models.SavedSimulation).filter(
-        models.SavedSimulation.id == simulation_id,
-        models.SavedSimulation.user_id == user_id
-    ).delete()
-    db.commit()
-
-# Favorite Locations
-def get_favorite_locations(db: Session, user_id: str):
-    return db.query(models.FavoriteLocation).filter(models.FavoriteLocation.user_id == user_id).order_by(models.FavoriteLocation.created_at).all()
-
-def create_favorite_location(db: Session, location: schemas.FavoriteLocationCreate):
-    db_location = models.FavoriteLocation(**location.dict())
-    db.add(db_location)
-    db.commit()
-    db.refresh(db_location)
-    return db_location
-
-def delete_favorite_location(db: Session, location_id: str, user_id: str):
-    db.query(models.FavoriteLocation).filter(
-        models.FavoriteLocation.id == location_id,
-    ).delete()
-    db.commit()
+async def delete_favorite_location(db: AsyncIOMotorDatabase, location_id: str, user_id: str):
+    await db["users"].update_one(
+        {"id": user_id},
+        {"$pull": {"favorite_locations": {"id": location_id}}}
+    )
 
 # Eco Actions
-def get_eco_actions(db: Session):
-    return db.query(models.EcoAction).all()
+async def get_eco_actions(db: AsyncIOMotorDatabase):
+    cursor = db["eco_actions"].find({})
+    return await cursor.to_list(length=100)
 
-def create_eco_action(db: Session, action: schemas.EcoActionCreate):
-    db_action = models.EcoAction(**action.dict())
-    db.add(db_action)
-    db.commit()
-    db.refresh(db_action)
-    return db_action
+async def create_eco_action(db: AsyncIOMotorDatabase, action: schemas.EcoActionCreate):
+    action_dict = action.dict()
+    action_dict["id"] = models.generate_uuid()
+    await db["eco_actions"].insert_one(action_dict)
+    return action_dict
 
-# User Actions
-def get_user_actions(db: Session, user_id: str):
-    return db.query(models.UserAction).filter(models.UserAction.user_id == user_id).order_by(models.UserAction.completed_at.desc()).all()
+# User Actions (History remains separate for scalability)
+async def get_user_actions(db: AsyncIOMotorDatabase, user_id: str):
+    pipeline = [
+        {"$match": {"user_id": user_id}},
+        {"$sort": {"completed_at": -1}},
+        {
+            "$lookup": {
+                "from": "eco_actions",
+                "localField": "action_id",
+                "foreignField": "id",
+                "as": "action"
+            }
+        },
+        {"$unwind": {"path": "$action", "preserveNullAndEmptyArrays": True}}
+    ]
+    cursor = db["user_actions"].aggregate(pipeline)
+    return await cursor.to_list(length=100)
 
-def create_user_action(db: Session, action: schemas.UserActionCreate):
-    db_action = models.UserAction(**action.dict())
-    db.add(db_action)
-    db.commit()
-    db.refresh(db_action)
-    return db_action
+async def create_user_action(db: AsyncIOMotorDatabase, action: schemas.UserActionCreate):
+    action_dict = action.dict()
+    action_dict["id"] = models.generate_uuid()
+    action_dict["completed_at"] = datetime.utcnow()
+    await db["user_actions"].insert_one(action_dict)
+    return action_dict

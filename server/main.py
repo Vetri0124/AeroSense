@@ -1,52 +1,69 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
 from typing import List, Optional
 from datetime import timedelta
 import crud, models, schemas
-from database import Base, get_db, get_user_db, get_admin_db, user_engine, admin_engine
+from database import get_db
 import nasa_api
 from auth import create_access_token, verify_password, get_current_user, get_current_user_optional, ACCESS_TOKEN_EXPIRE_MINUTES
 
 from contextlib import asynccontextmanager
 
-# Create tables for both databases
-models.Base.metadata.create_all(bind=user_engine)
-models.Base.metadata.create_all(bind=admin_engine)
+# No table creation needed for MongoDB, but you could initialize indexes here
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
-    from database import AdminSessionLocal, UserSessionLocal
+    from database import get_db
+    db = await get_db()
     
-    # 1. Create default admin in admin_db
-    admin_db = AdminSessionLocal()
+    # 1. Create default admin in users collection
     try:
-        admin = crud.get_admin_by_username(admin_db, username="admin")
+        admin = await crud.get_admin_by_username(db, username="admin")
         if not admin:
-            crud.create_admin(admin_db, schemas.AdminCreate(username="admin", password="password123"))
-            print("Default admin created in admin_db: admin / password123")
-    finally:
-        admin_db.close()
+            await crud.create_admin(db, schemas.AdminLogin(username="admin", password="password123"))
+            print("Default admin created in MongoDB users collection: admin / password123")
+    except Exception as e:
+        print(f"Error creating default admin: {e}")
 
-    # 2. Create default eco-actions in user_db
-    user_db = UserSessionLocal()
+    # 2. Seed eco-actions (only if they don't exist by title)
     try:
-        actions = crud.get_eco_actions(user_db)
-        if not actions:
-            initial_actions = [
-                schemas.EcoActionCreate(title="Use Public Transport", description="Reduce your carbon footprint by taking the bus or train.", co2_saved_kg=2.5, category="Transport", difficulty="Easy"),
-                schemas.EcoActionCreate(title="Switch Off Lights", description="Save energy by turning off lights when not in use.", co2_saved_kg=0.5, category="Energy", difficulty="Easy"),
-                schemas.EcoActionCreate(title="Plant a Tree", description="Contribute to long-term carbon absorption and air purification.", co2_saved_kg=20.0, category="Nature", difficulty="Hard"),
-                schemas.EcoActionCreate(title="Reduce Meat Intake", description="Lower methane emissions by choosing plant-based meals.", co2_saved_kg=1.8, category="Diet", difficulty="Medium"),
-            ]
-            for action in initial_actions:
-                crud.create_eco_action(user_db, action)
-            print("Initial eco-actions created in user_db.")
-    finally:
-        user_db.close()
+        existing_actions = await crud.get_eco_actions(db)
+        existing_titles = {a["title"] for a in existing_actions}
+        
+        initial_actions = [
+            # DAILY GOALS (Small, repeatable habits)
+            schemas.EcoActionCreate(title="Public Transport Commute", description="Use bus or train for your daily travel.", co2_saved_kg=2.5, category="Transport", difficulty="Easy", period="daily"),
+            schemas.EcoActionCreate(title="Smart Lighting Mode", description="Ensure all non-essential lights are off for 4+ hours.", co2_saved_kg=0.4, category="Energy", difficulty="Easy", period="daily"),
+            schemas.EcoActionCreate(title="Zero-Waste Hydration", description="Use reusable bottles exclusively today.", co2_saved_kg=0.2, category="Waste", difficulty="Easy", period="daily"),
+            schemas.EcoActionCreate(title="Digital Cleanup", description="Delete 100 unneeded emails to reduce server energy.", co2_saved_kg=0.1, category="Energy", difficulty="Easy", period="daily"),
+            
+            # WEEKLY GOALS (Planned efforts or specific tasks)
+            schemas.EcoActionCreate(title="Meat-Free Weekend", description="Switch to plant-based meals for the entire weekend.", co2_saved_kg=8.5, category="Diet", difficulty="Medium", period="weekly"),
+            schemas.EcoActionCreate(title="Community Cleanup", description="Spend 30 minutes cleaning a local green space.", co2_saved_kg=5.0, category="Nature", difficulty="Medium", period="weekly"),
+            schemas.EcoActionCreate(title="Laundry Optimization", description="Only wash full loads using cold water this week.", co2_saved_kg=4.2, category="Energy", difficulty="Easy", period="weekly"),
+            schemas.EcoActionCreate(title="Farmers Market Visit", description="Buy your weekly produce from local sources.", co2_saved_kg=6.0, category="Diet", difficulty="Medium", period="weekly"),
+            
+            # MONTHLY GOALS (Significant impact or maintenance)
+            schemas.EcoActionCreate(title="Plant a Carbon-Sink", description="Plant a tree or a large native shrub in your area.", co2_saved_kg=25.0, category="Nature", difficulty="Hard", period="monthly"),
+            schemas.EcoActionCreate(title="Home Energy Audit", description="Identify and seal air leaks or upgrade a bulb to LED.", co2_saved_kg=45.0, category="Energy", difficulty="Medium", period="monthly"),
+            schemas.EcoActionCreate(title="Solar Transition Plan", description="Research or install a small solar device/panel.", co2_saved_kg=120.0, category="Energy", difficulty="Hard", period="monthly"),
+            schemas.EcoActionCreate(title="Zero-Waste Bulk Buy", description="Purchase monthly essentials in bulk without packaging.", co2_saved_kg=12.0, category="Waste", difficulty="Medium", period="monthly"),
+        ]
+        
+        added_count = 0
+        for action in initial_actions:
+            if action.title not in existing_titles:
+                await crud.create_eco_action(db, action)
+                added_count += 1
+        
+        if added_count > 0:
+            print(f"Seeded {added_count} new eco-actions into MongoDB.")
+    except Exception as e:
+        print(f"Error seeding eco-actions: {e}")
     
     yield
     # Shutdown logic (if any) could go here
@@ -88,10 +105,10 @@ def read_root():
 # ============ AUTHENTICATION ROUTES ============
 
 @app.post("/api/auth/register", response_model=schemas.Token)
-def register(user: schemas.UserRegister, db: Session = Depends(get_user_db)):
+async def register(user: schemas.UserRegister, db = Depends(get_db)):
     """Register a new user account"""
     # Check if username already exists
-    db_user = crud.get_user_by_username(db, username=user.username)
+    db_user = await crud.get_user_by_username(db, username=user.username)
     if db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -99,7 +116,7 @@ def register(user: schemas.UserRegister, db: Session = Depends(get_user_db)):
         )
     
     # Check if email already exists
-    db_user = crud.get_user_by_email(db, email=user.email)
+    db_user = await crud.get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -108,8 +125,8 @@ def register(user: schemas.UserRegister, db: Session = Depends(get_user_db)):
     
     # Create new user
     try:
-        new_user = crud.create_user(db=db, user=user)
-        print(f"Successfully registered new user: {new_user.username} ({new_user.id})")
+        new_user = await crud.create_user(db=db, user=user)
+        print(f"Successfully registered new user: {new_user['username']} ({new_user['id']})")
     except Exception as e:
         print(f"Registration error: {str(e)}")
         raise HTTPException(
@@ -120,7 +137,7 @@ def register(user: schemas.UserRegister, db: Session = Depends(get_user_db)):
     # Create access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(new_user.id)},
+        data={"sub": str(new_user['id'])},
         expires_delta=access_token_expires
     )
     
@@ -131,9 +148,9 @@ def register(user: schemas.UserRegister, db: Session = Depends(get_user_db)):
     }
 
 @app.post("/api/auth/login", response_model=schemas.Token)
-def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_user_db)):
+async def login(user_credentials: schemas.UserLogin, db = Depends(get_db)):
     """Login with email and password"""
-    user = crud.get_user_by_email(db, email=user_credentials.email)
+    user = await crud.get_user_by_email(db, email=user_credentials.email)
     
     if not user:
         print(f"Login failed: User with email {user_credentials.email} not found")
@@ -143,7 +160,7 @@ def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_user_db
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    if not verify_password(user_credentials.password, user.password_hash):
+    if not verify_password(user_credentials.password, user['password_hash']):
         print(f"Login failed: Incorrect password for {user_credentials.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -154,7 +171,7 @@ def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_user_db
     # Create access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id)},
+        data={"sub": str(user['id'])},
         expires_delta=access_token_expires
     )
     
@@ -165,45 +182,63 @@ def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_user_db
     }
 
 @app.get("/api/auth/me", response_model=schemas.User)
-def get_current_user_info(current_user: models.User = Depends(get_current_user)):
+async def get_current_user_info(current_user = Depends(get_current_user)):
     """Get current authenticated user information"""
     return current_user
 
 # ============ PROTECTED USER ROUTES ============
 
 @app.get("/api/users", response_model=List[schemas.User])
-def read_users(db: Session = Depends(get_user_db)):
+async def read_users(db = Depends(get_db)):
     """Get all users (admin visualization)"""
-    return crud.get_users(db)
+    return await crud.get_users(db)
 
 @app.get("/api/users/me", response_model=schemas.User)
-def read_current_user(current_user: models.User = Depends(get_current_user)):
+async def read_current_user(current_user = Depends(get_current_user)):
     """Get current user profile"""
     return current_user
 
 # Admin Routes
 @app.post("/api/admin/login")
-def admin_login(admin: schemas.AdminCreate, db: Session = Depends(get_admin_db)):
-    db_admin = crud.get_admin_by_username(db, username=admin.username)
-    if not db_admin or db_admin.password != admin.password:
+async def admin_login(admin: schemas.AdminLogin, db = Depends(get_db)):
+    db_admin = await crud.get_admin_by_username(db, username=admin.username)
+    if not db_admin or not verify_password(admin.password, db_admin['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid admin credentials")
-    return {"status": "success", "admin_id": db_admin.id, "username": db_admin.username}
+    return {"status": "success", "admin_id": db_admin['id'], "username": db_admin['username']}
 
 @app.post("/api/admin/register")
-def register_admin(admin: schemas.AdminCreate, db: Session = Depends(get_admin_db)):
+async def register_admin(admin: schemas.AdminLogin, db = Depends(get_db)):
     # Simple check for existing
-    existing = crud.get_admin_by_username(db, username=admin.username)
+    existing = await crud.get_admin_by_username(db, username=admin.username)
     if existing:
         raise HTTPException(status_code=400, detail="Admin already exists")
-    return crud.create_admin(db, admin)
+    return await crud.create_admin(db, admin)
 
 @app.get("/api/admin/users-stats")
-def get_admin_stats(db: Session = Depends(get_user_db)):
-    users_count = db.query(models.User).count()
-    actions_count = db.query(models.UserAction).count()
+async def get_admin_stats(db = Depends(get_db)):
+    users_count = await db["users"].count_documents({})
+    actions_count = await db["user_actions"].count_documents({})
     
     # Calculate total impact
-    total_impact = db.query(func.sum(models.EcoAction.co2_saved_kg)).join(models.UserAction, models.UserAction.action_id == models.EcoAction.id).scalar() or 0
+    pipeline = [
+        {
+            "$lookup": {
+                "from": "eco_actions",
+                "localField": "action_id",
+                "foreignField": "id",
+                "as": "action_info"
+            }
+        },
+        {"$unwind": "$action_info"},
+        {
+            "$group": {
+                "_id": None,
+                "total_impact": {"$sum": "$action_info.co2_saved_kg"}
+            }
+        }
+    ]
+    result = await db["user_actions"].aggregate(pipeline).to_list(1)
+    total_impact = result[0]["total_impact"] if result else 0
     
     return {
         "total_users": users_count,
@@ -215,19 +250,19 @@ def get_admin_stats(db: Session = Depends(get_user_db)):
 
 @app.get("/api/user-settings/{user_id}", response_model=schemas.UserSettings)
 @app.get("/api/user-settings", response_model=schemas.UserSettings)
-def read_user_settings(
+async def read_user_settings(
     user_id: Optional[str] = None,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Get current user's settings"""
     # Use authenticated user's ID
-    settings = crud.get_user_settings(db, user_id=current_user.id)
+    settings = await crud.get_user_settings(db, user_id=current_user['id'])
     if settings is None:
         # Return default settings if not found
         return schemas.UserSettings(
             id="default",
-            user_id=current_user.id,
+            user_id=current_user['id'],
             selected_city="Coimbatore",
             latitude=11.0168,
             longitude=76.9558,
@@ -236,74 +271,70 @@ def read_user_settings(
     return settings
 
 @app.post("/api/user-settings", response_model=schemas.UserSettings)
-def update_user_settings(
+async def update_user_settings(
     settings: schemas.UserSettingsCreate,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Update current user's settings"""
-    # Override user_id with authenticated user's ID
-    settings.user_id = current_user.id
-    return crud.update_user_settings(db=db, user_id=current_user.id, settings=settings)
+    return await crud.update_user_settings(db = db, user_id=current_user['id'], settings=settings)
 
 # ============ SAVED SIMULATIONS ROUTES (PROTECTED) ============
 
 @app.get("/api/simulations", response_model=List[schemas.SavedSimulation])
-def read_simulations(
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+async def read_simulations(
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Get current user's saved simulations"""
-    return crud.get_saved_simulations(db, user_id=current_user.id)
+    return await crud.get_saved_simulations(db, user_id=current_user['id'])
 
 @app.post("/api/simulations", response_model=schemas.SavedSimulation)
-def create_simulation(
+async def create_simulation(
     simulation: schemas.SavedSimulationCreate,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Create a new simulation for current user"""
-    simulation.user_id = current_user.id
-    return crud.create_saved_simulation(db=db, simulation=simulation)
+    return await crud.create_saved_simulation(db=db, simulation=simulation, user_id=current_user['id'])
 
 @app.delete("/api/simulations/{id}")
-def delete_simulation(
+async def delete_simulation(
     id: str,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Delete a simulation"""
-    crud.delete_saved_simulation(db=db, simulation_id=id, user_id=current_user.id)
+    await crud.delete_saved_simulation(db=db, simulation_id=id, user_id=current_user['id'])
     return {"status": "success"}
 
 # ============ FAVORITE LOCATIONS ROUTES (PROTECTED) ============
 
 @app.get("/api/locations", response_model=List[schemas.FavoriteLocation])
-def read_locations(
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+async def read_locations(
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Get current user's favorite locations"""
-    return crud.get_favorite_locations(db, user_id=current_user.id)
+    return await crud.get_favorite_locations(db, user_id=current_user['id'])
 
 @app.post("/api/locations", response_model=schemas.FavoriteLocation)
-def create_location(
+async def create_location(
     location: schemas.FavoriteLocationCreate,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Add a favorite location for current user"""
-    location.user_id = current_user.id
-    return crud.create_favorite_location(db=db, location=location)
+    return await crud.create_favorite_location(db=db, location=location, user_id=current_user['id'])
 
 @app.delete("/api/locations/{id}")
-def delete_location(
+async def delete_location(
     id: str,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Delete a favorite location"""
-    crud.delete_favorite_location(db=db, location_id=id, user_id=current_user.id)
+    await crud.delete_favorite_location(db=db, location_id=id, user_id=current_user['id'])
     return {"status": "success"}
 
 # NASA Weather Routes
@@ -313,57 +344,46 @@ def get_current_environment(latitude: float, longitude: float):
 
 # Eco Actions Routes
 @app.get("/api/eco-actions", response_model=List[schemas.EcoAction])
-def read_eco_actions(db: Session = Depends(get_user_db)):
-    actions = crud.get_eco_actions(db)
-    if not actions:
-         # Seed initial data if empty
-        seed_data = [
-            {"title": "Switch to LED Bulbs", "description": "Replace all incandescent bulbs with energy-efficient LEDs.", "co2_saved_kg": 50.0, "category": "Energy", "difficulty": "Easy"},
-            {"title": "Ride a Bike to Work", "description": "Commute by bicycle instead of driving a car.", "co2_saved_kg": 4.5, "category": "Transport", "difficulty": "Medium"},
-            {"title": "Plant a Tree", "description": "Plant a native tree in your garden or community.", "co2_saved_kg": 20.0, "category": "Nature", "difficulty": "Medium"},
-            {"title": "Start Composting", "description": "Compost organic kitchen waste to reduce landfill methane.", "co2_saved_kg": 150.0, "category": "Waste", "difficulty": "Medium"},
-            {"title": "Use Reusable Bags", "description": "Bring your own bags when shopping.", "co2_saved_kg": 5.0, "category": "Waste", "difficulty": "Easy"},
-            {"title": "Lower Thermostat in Winter", "description": "Lower your thermostat by 2 degrees.", "co2_saved_kg": 100.0, "category": "Energy", "difficulty": "Easy"},
-             {"title": "Install Solar Panels", "description": "Generate your own clean electricity.", "co2_saved_kg": 1500.0, "category": "Energy", "difficulty": "Hard"}
-        ]
-        for action in seed_data:
-            crud.create_eco_action(db, schemas.EcoActionCreate(**action))
-        actions = crud.get_eco_actions(db)
+async def read_eco_actions(db = Depends(get_db)):
+    actions = await crud.get_eco_actions(db)
     return actions
 
 @app.post("/api/eco-actions/complete")
-def log_user_action(
+async def log_user_action(
     data: dict,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Complete an eco-action (protected)"""
     action_id = data.get("action_id")
-    
+    if not action_id:
+        raise HTTPException(status_code=400, detail="action_id is required")
+        
     # Check if already completed
-    existing = db.query(models.UserAction).filter(
-        models.UserAction.action_id == action_id,
-        models.UserAction.user_id == current_user.id
-    ).first()
+    existing = await db["user_actions"].find_one({
+        "action_id": action_id,
+        "user_id": current_user['id']
+    })
     
     if existing:
          return {"status": "already_done", "message": "You've already completed this action!"}
 
-    new_action = models.UserAction(
-        user_id=current_user.id,
+    user_action = schemas.UserActionCreate(
+        user_id=current_user['id'],
         action_id=action_id
     )
-    db.add(new_action)
-    db.commit()
+    
+    await crud.create_user_action(db, user_action)
+    print(f"User {current_user['username']} completed action {action_id}")
     return {"status": "success", "message": "Great job! Your action has been recorded."}
 
-@app.get("/api/eco-actions/history")
-def read_user_actions(
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_user_db)
+@app.get("/api/eco-actions/history", response_model=List[schemas.UserAction])
+async def read_user_actions(
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
 ):
     """Get current user's eco-action history (protected)"""
-    return crud.get_user_actions(db, user_id=current_user.id)
+    return await crud.get_user_actions(db, user_id=current_user['id'])
 
 
 if __name__ == "__main__":

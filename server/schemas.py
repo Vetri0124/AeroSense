@@ -1,6 +1,49 @@
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any, List
 from datetime import datetime
+
+# User Settings Schemas (Nested)
+class UserSettingsBase(BaseModel):
+    selected_city: str = "Coimbatore"
+    latitude: float = 11.0168
+    longitude: float = 76.9558
+    preferences: Optional[Dict[str, Any]] = {}
+
+class UserSettingsCreate(UserSettingsBase):
+    pass
+
+class UserSettings(UserSettingsBase):
+    updated_at: Optional[datetime] = None
+
+# Saved Simulation Schemas (Nested)
+class SavedSimulationBase(BaseModel):
+    name: str
+    wind_speed: float
+    rain_chance: float
+    temperature: float
+    humidity: float
+    traffic_density: float
+    industrial_activity: float
+
+class SavedSimulationCreate(SavedSimulationBase):
+    pass
+
+class SavedSimulation(SavedSimulationBase):
+    id: str
+    created_at: datetime
+
+# Favorite Location Schemas (Nested)
+class FavoriteLocationBase(BaseModel):
+    city_name: str
+    latitude: float
+    longitude: float
+
+class FavoriteLocationCreate(FavoriteLocationBase):
+    pass
+
+class FavoriteLocation(FavoriteLocationBase):
+    id: str
+    created_at: datetime
 
 # User Schemas
 class UserBase(BaseModel):
@@ -17,6 +60,9 @@ class UserRegister(BaseModel):
     email: str
     password: str
     full_name: Optional[str] = None
+    city: str
+    latitude: float
+    longitude: float
 
 class UserLogin(BaseModel):
     email: str
@@ -25,7 +71,11 @@ class UserLogin(BaseModel):
 class User(UserBase):
     id: str
     is_active: int
+    role: str = "user"  # "user" or "admin"
     created_at: datetime
+    settings: UserSettings = Field(default_factory=UserSettings)
+    favorite_locations: List[FavoriteLocation] = []
+    simulations: List[SavedSimulation] = []
 
     class Config:
         from_attributes = True
@@ -39,75 +89,10 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     user_id: Optional[str] = None
 
-# Admin Schemas
-class AdminBase(BaseModel):
+# Admin Login Schema (Simple)
+class AdminLogin(BaseModel):
     username: str
-
-class AdminCreate(AdminBase):
     password: str
-
-class Admin(AdminBase):
-    id: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-# User Settings Schemas
-class UserSettingsBase(BaseModel):
-    selected_city: str = "Coimbatore"
-    latitude: float = 11.0168
-    longitude: float = 76.9558
-    preferences: Optional[Dict[str, Any]] = {}
-
-class UserSettingsCreate(UserSettingsBase):
-    user_id: Optional[str] = None
-
-class UserSettings(UserSettingsBase):
-    id: str
-    user_id: str
-    updated_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
-# Saved Simulation Schemas
-class SavedSimulationBase(BaseModel):
-    name: str
-    wind_speed: float
-    rain_chance: float
-    temperature: float
-    humidity: float
-    traffic_density: float
-    industrial_activity: float
-
-class SavedSimulationCreate(SavedSimulationBase):
-    user_id: str
-
-class SavedSimulation(SavedSimulationBase):
-    id: str
-    user_id: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-# Favorite Location Schemas
-class FavoriteLocationBase(BaseModel):
-    city_name: str
-    latitude: float
-    longitude: float
-
-class FavoriteLocationCreate(FavoriteLocationBase):
-    user_id: str
-
-class FavoriteLocation(FavoriteLocationBase):
-    id: str
-    user_id: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 # Eco-Action Schemas
 class EcoActionBase(BaseModel):
@@ -116,6 +101,7 @@ class EcoActionBase(BaseModel):
     co2_saved_kg: float
     category: str
     difficulty: str
+    period: str = "daily" # daily, weekly, monthly
 
 class EcoActionCreate(EcoActionBase):
     pass

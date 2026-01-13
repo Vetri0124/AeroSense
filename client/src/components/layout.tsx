@@ -4,24 +4,41 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import { OrbMenu } from "./orb-menu";
+import { useEffect } from "react";
 
 export default function Layout({ children, fullWidth = false }: { children: React.ReactNode, fullWidth?: boolean }) {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Secret Shortcut: Ctrl + Shift + Alt + A
+      if (e.ctrlKey && e.shiftKey && e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setLocation("/admin/login");
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setLocation]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-primary/30 relative">
 
       {/* Top Bar - Minimal & Responsive */}
       <header className="fixed top-0 left-0 right-0 z-[60] h-16 md:h-20 flex items-center justify-between px-4 md:px-8 bg-black/20 backdrop-blur-md border-b border-white/5 pointer-events-none">
-        <div className="flex items-center gap-2 md:gap-3 pointer-events-auto">
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/50 text-primary shadow-[0_0_15px_rgba(0,255,255,0.3)]">
-            <Wind className="h-5 w-5 md:h-6 md:w-6 animate-pulse-slow" />
+        <Link href="/">
+          <div className="flex items-center gap-2 md:gap-3 pointer-events-auto cursor-pointer group">
+            <div className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/50 text-primary shadow-[0_0_15px_rgba(0,255,255,0.3)] group-hover:scale-110 transition-transform">
+              <Wind className="h-5 w-5 md:h-6 md:w-6 animate-pulse-slow" />
+            </div>
+            <div>
+              <h1 className="font-heading font-bold text-sm md:text-xl tracking-widest text-white glow-text leading-none group-hover:text-primary transition-colors">AEROSENSE</h1>
+              <p className="text-[8px] md:text-[10px] text-primary font-mono tracking-[0.2em] uppercase mt-0.5">Air Quality Monitor</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-heading font-bold text-sm md:text-xl tracking-widest text-white glow-text leading-none">AEROSENSE</h1>
-            <p className="text-[8px] md:text-[10px] text-primary font-mono tracking-[0.2em] uppercase mt-0.5">Air Quality Monitor</p>
-          </div>
-        </div>
+        </Link>
 
         <div className="pointer-events-auto flex items-center gap-2 md:gap-4">
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10">

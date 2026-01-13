@@ -56,7 +56,19 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                 .then(data => {
                     if (data && data.selected_city) {
                         const savedLoc = GLOBAL_LOCATIONS.find(l => l.city === data.selected_city);
-                        if (savedLoc) setLocationState(savedLoc);
+                        if (savedLoc) {
+                            setLocationState(savedLoc);
+                        } else {
+                            setLocationState({
+                                name: `Home: ${data.selected_city}`,
+                                country: "",
+                                city: data.selected_city,
+                                lat: data.latitude,
+                                lon: data.longitude,
+                                aqiBase: 40,
+                                focus: "Registered Residence"
+                            });
+                        }
                     }
                 })
                 .catch(err => console.error("Failed to load user settings", err));

@@ -1,12 +1,14 @@
 import Layout from "@/components/layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { Sprout, CheckCircle, Award, Target, Zap, Globe, Shield, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useAuth, getAuthHeaders } from "@/hooks/use-auth";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { isToday, isThisWeek, isThisMonth } from "date-fns";
 
 interface EcoAction {
     id: string;
@@ -15,6 +17,7 @@ interface EcoAction {
     co2_saved_kg: number;
     category: string;
     difficulty: "Easy" | "Medium" | "Hard";
+    period: "daily" | "weekly" | "monthly";
 }
 
 interface UserAction {
@@ -120,64 +123,116 @@ export default function EcoActions() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10">
                     <div className="space-y-6 md:space-y-8">
-                        <div className="flex items-center gap-3 md:gap-4 px-2">
-                            <Zap className="h-5 w-5 md:h-6 md:w-6 text-primary" />
-                            <h2 className="text-2xl md:text-3xl font-heading font-black text-white uppercase tracking-tighter">Mission Log</h2>
+                        <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-3 md:gap-4">
+                                <Zap className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+                                <h2 className="text-2xl md:text-3xl font-heading font-black text-white uppercase tracking-tighter">Strategic Goals</h2>
+                            </div>
                         </div>
-                        <div className="space-y-3 md:space-y-4">
-                            {actions?.map((action) => {
-                                const isCompleted = userHistory?.some(h => h.action_id === action.id);
+
+                        <Tabs defaultValue="daily" className="w-full">
+                            <TabsList className="bg-white/5 p-1 rounded-2xl border border-white/10 mb-8 h-auto flex flex-wrap gap-1">
+                                <TabsTrigger value="daily" className="flex-1 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-black uppercase font-black text-[10px] tracking-widest">Daily</TabsTrigger>
+                                <TabsTrigger value="weekly" className="flex-1 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-black uppercase font-black text-[10px] tracking-widest">Weekly</TabsTrigger>
+                                <TabsTrigger value="monthly" className="flex-1 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-black uppercase font-black text-[10px] tracking-widest">Monthly</TabsTrigger>
+                            </TabsList>
+
+                            {["daily", "weekly", "monthly"].map((period) => {
+                                const periodActions = actions?.filter(a => a.period === period) || [];
+                                const completedInPeriod = periodActions.filter(action =>
+                                    userHistory?.some(h => {
+                                        if (h.action_id !== action.id) return false;
+                                        const date = new Date(h.completed_at);
+                                        if (period === "daily") return isToday(date);
+                                        if (period === "weekly") return isThisWeek(date);
+                                        if (period === "monthly") return isThisMonth(date);
+                                        return false;
+                                    })
+                                );
+                                const progress = periodActions.length > 0 ? (completedInPeriod.length / periodActions.length) * 100 : 0;
+
                                 return (
-                                    <motion.div
-                                        key={action.id}
-                                        variants={item}
-                                        className={cn(
-                                            "glass-panel p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border transition-all flex flex-col sm:flex-row items-center gap-4 md:gap-8 group backdrop-blur-3xl",
-                                            isCompleted ? "border-primary/20 bg-primary/5" : "border-white/5 bg-black/20 hover:border-white/20"
-                                        )}
-                                    >
-                                        <div className={cn(
-                                            "h-12 w-12 md:h-16 md:w-16 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 border transition-all shadow-2xl",
-                                            isCompleted ? "bg-primary/20 border-primary/40 text-primary" : "bg-white/5 border-white/10 text-gray-500 group-hover:text-white"
-                                        )}>
-                                            <Sprout className="h-8 w-8" />
-                                        </div>
-                                        <div className="flex-1 text-center sm:text-left">
-                                            <div className="flex flex-wrap justify-center sm:justify-start gap-2 mb-3">
-                                                <span className="text-[9px] font-black text-primary font-mono uppercase tracking-[0.2em]">{action.category}</span>
-                                                <span className="text-[9px] font-black text-gray-500 font-mono uppercase tracking-[0.2em]">Eco Point</span>
+                                    <TabsContent key={period} value={period} className="space-y-6 mt-0 outline-none">
+                                        <div className="glass-panel p-6 rounded-[1.5rem] border border-white/5 bg-white/5 mb-8">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{period} Progress</span>
+                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest">{completedInPeriod.length} / {periodActions.length} Complete</span>
                                             </div>
-                                            <h3 className="text-2xl font-heading font-black text-white uppercase mb-2 leading-none">{action.title}</h3>
-                                            <p className="text-gray-500 text-sm leading-relaxed">{action.description}</p>
+                                            <Progress value={progress} className="h-2 bg-white/5" indicatorClassName="bg-primary shadow-[0_0_15px_rgba(0,255,255,0.5)]" />
                                         </div>
-                                        <div className="text-right flex flex-col sm:items-end gap-3 w-full sm:w-auto">
-                                            <div className="flex sm:flex-col items-center sm:items-end justify-between gap-px px-4 sm:px-0">
-                                                <span className="text-[10px] font-black text-primary font-mono leading-none">-{action.co2_saved_kg}kg</span>
-                                                <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest leading-none">CO2 SAVED</span>
-                                            </div>
-                                            <Button
-                                                variant={isCompleted ? "outline" : "default"}
-                                                size="lg"
-                                                onClick={() => mutation.mutate(action.id)}
-                                                disabled={isCompleted || mutation.isPending}
-                                                className={cn(
-                                                    "rounded-xl px-10 min-w-[140px] uppercase text-[10px] font-black tracking-widest transition-all",
-                                                    isCompleted && "border-primary/50 text-primary opacity-100"
-                                                )}
-                                            >
-                                                {isCompleted ? (
-                                                    "Done"
-                                                ) : mutation.isPending ? (
-                                                    "Saving..."
-                                                ) : (
-                                                    "Add to History"
-                                                )}
-                                            </Button>
+
+                                        <div className="space-y-4">
+                                            {periodActions.map((action) => {
+                                                const historyItem = userHistory?.find(h => {
+                                                    if (h.action_id !== action.id) return false;
+                                                    const date = new Date(h.completed_at);
+                                                    if (period === "daily") return isToday(date);
+                                                    if (period === "weekly") return isThisWeek(date);
+                                                    if (period === "monthly") return isThisMonth(date);
+                                                    return false;
+                                                });
+                                                const isCompleted = !!historyItem;
+
+                                                return (
+                                                    <motion.div
+                                                        key={action.id}
+                                                        variants={item}
+                                                        className={cn(
+                                                            "glass-panel p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border transition-all flex flex-col sm:flex-row items-center gap-4 md:gap-8 group backdrop-blur-3xl relative overflow-hidden",
+                                                            isCompleted ? "border-primary/20 bg-primary/5" : "border-white/5 bg-black/20 hover:border-white/20"
+                                                        )}
+                                                    >
+                                                        {isCompleted && (
+                                                            <div className="absolute top-0 right-0 p-2">
+                                                                <CheckCircle className="h-4 w-4 text-primary" />
+                                                            </div>
+                                                        )}
+                                                        <div className={cn(
+                                                            "h-12 w-12 md:h-16 md:w-16 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 border transition-all shadow-2xl",
+                                                            isCompleted ? "bg-primary/20 border-primary/40 text-primary" : "bg-white/5 border-white/10 text-gray-500 group-hover:text-white"
+                                                        )}>
+                                                            <Sprout className="h-8 w-8" />
+                                                        </div>
+                                                        <div className="flex-1 text-center sm:text-left">
+                                                            <div className="flex flex-wrap justify-center sm:justify-start gap-2 mb-3">
+                                                                <span className="text-[9px] font-black text-primary font-mono uppercase tracking-[0.2em]">{action.category}</span>
+                                                                <span className="text-[9px] font-black text-gray-500 font-mono uppercase tracking-[0.2em]">{action.difficulty}</span>
+                                                            </div>
+                                                            <h3 className="text-2xl font-heading font-black text-white uppercase mb-2 leading-none">{action.title}</h3>
+                                                            <p className="text-gray-500 text-sm leading-relaxed">{action.description}</p>
+                                                        </div>
+                                                        <div className="text-right flex flex-col sm:items-end gap-3 w-full sm:w-auto">
+                                                            <div className="flex sm:flex-col items-center sm:items-end justify-between gap-px px-4 sm:px-0">
+                                                                <span className="text-xl font-black text-primary font-mono leading-none">-{action.co2_saved_kg}kg</span>
+                                                                <span className="text-[8px] text-gray-500 font-bold uppercase tracking-widest leading-none">CO2 SAVED</span>
+                                                            </div>
+                                                            <Button
+                                                                variant={isCompleted ? "outline" : "default"}
+                                                                size="lg"
+                                                                onClick={() => mutation.mutate(action.id)}
+                                                                disabled={isCompleted || mutation.isPending}
+                                                                className={cn(
+                                                                    "rounded-xl px-10 min-w-[140px] uppercase text-[10px] font-black tracking-widest transition-all",
+                                                                    isCompleted && "border-primary/50 text-primary opacity-100"
+                                                                )}
+                                                            >
+                                                                {isCompleted ? (
+                                                                    "Fulfilled"
+                                                                ) : mutation.isPending ? (
+                                                                    "Initiating..."
+                                                                ) : (
+                                                                    "Commit"
+                                                                )}
+                                                            </Button>
+                                                        </div>
+                                                    </motion.div>
+                                                );
+                                            })}
                                         </div>
-                                    </motion.div>
+                                    </TabsContent>
                                 );
                             })}
-                        </div>
+                        </Tabs>
                     </div>
 
                     <div className="space-y-8">

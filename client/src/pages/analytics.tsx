@@ -1,21 +1,18 @@
 import Layout from "@/components/layout";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger as TabsTriggerPrimitive } from "@/components/ui/tabs";
 import { TrendChart } from "@/components/trend-chart";
 import {
   generateHistoricalData,
-  generateGlobalHubsData,
   generateCarbonTrend,
   generateAnnualReportData,
   getAQILevel
 } from "@/lib/mockData";
 import {
   Calendar,
-  Layers,
   Globe,
   Activity,
   Shield,
   Zap,
-  Eye,
   Wind as WindIcon,
   Sun,
   BarChart3,
@@ -24,18 +21,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Heart,
-  Navigation,
   MapPin
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-
-// Bypass react-leaflet type issues in this environment
-const MapContainerAny = MapContainer as any;
-const TileLayerAny = TileLayer as any;
-const CircleMarkerAny = CircleMarker as any;
-const PopupAny = Popup as any;
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart,
@@ -51,14 +41,7 @@ import {
 } from 'recharts';
 import { useLocation, GLOBAL_LOCATIONS } from "@/hooks/use-location-context";
 import { cn } from "@/lib/utils";
-
-function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
-  const map = useMap();
-  useEffect(() => {
-    map.flyTo(center, zoom, { duration: 2 });
-  }, [center, zoom, map]);
-  return null;
-}
+import { useQuery, useQueries } from "@tanstack/react-query";
 
 // Standard AQI Colors Helper
 const getStandardAQIColor = (aqi: number) => {
@@ -70,6 +53,14 @@ const getStandardAQIColor = (aqi: number) => {
   return "#7E0023"; // Maroon
 };
 
+function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, zoom, { duration: 2 });
+  }, [center, zoom, map]);
+  return null;
+}
+
 const HubMap = ({
   selectedLocation,
   setSelectedLocation,
@@ -80,7 +71,8 @@ const HubMap = ({
   heatmapPoints,
   showTerminal,
   legendExpanded,
-  setLegendExpanded
+  setLegendExpanded,
+  hubQueries
 }: any) => {
   const [mapStyle, setMapStyle] = useState<"light" | "normal" | "satellite">("normal");
 
@@ -140,7 +132,7 @@ const HubMap = ({
       </div>
 
       <div className="h-[400px] md:h-[800px] w-full relative bg-gray-100">
-        <MapContainerAny
+        <MapContainer
           center={[selectedLocation.lat, selectedLocation.lon]}
           zoom={13}
           style={{ height: "100%", width: "100%", background: "#f3f4f6" }}
@@ -148,14 +140,14 @@ const HubMap = ({
           zoomControl={false}
         >
           <MapController center={[selectedLocation.lat, selectedLocation.lon]} zoom={mapZoom} />
-          <TileLayerAny
+          <TileLayer
             attribution='&copy; AeroSense'
             url={MAP_TILES[mapStyle]}
           />
 
           {heatmapPoints.map((p: any) => {
             let color = '#00ffd5';
-            let opacity = 0.25; // Adjusted down for better balance
+            let opacity = 0.25;
             let radius = 40;
 
             if (activeLayer === "risk") {
@@ -171,15 +163,14 @@ const HubMap = ({
               opacity = 0.18;
               radius = 50;
             } else {
-              // AQI Layer - Balanced Visibility
               const aqiVal = p.intensity * 2.5;
               color = getStandardAQIColor(aqiVal);
-              opacity = 0.28; // Toned down from 0.45
+              opacity = 0.28;
               radius = 45;
             }
 
             return (
-              <CircleMarkerAny
+              <CircleMarker
                 key={p.id}
                 center={[p.lat, p.lng]}
                 radius={radius}
@@ -192,33 +183,67 @@ const HubMap = ({
             );
           })}
 
-          <CircleMarkerAny center={[selectedLocation.lat, selectedLocation.lon]} radius={15} pathOptions={{ color: '#00ffff', fillColor: '#00ffff', fillOpacity: 0.8, weight: 15, opacity: 0.1 }}>
-            <PopupAny className="glass-popup">
-              <div className="p-6 w-[260px] bg-white/95 backdrop-blur-3xl border border-black/5 rounded-[2rem] text-black">
-                <div className="flex items-center gap-2 mb-4 border-b border-black/10 pb-4">
-                  <Activity className="h-5 w-5 text-primary" />
-                  <h4 className="font-heading font-black text-2xl text-black uppercase tracking-tighter leading-none">{selectedLocation.city} Hub</h4>
-                </div>
-                <div className="space-y-6">
-                  <div className="flex justify-between items-end">
-                    <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Air Status</span>
-                    <span className="text-4xl font-black text-primary leading-none glow-text">{selectedLocation.aqiBase + 10}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-3 bg-black/5 rounded-2xl border border-black/5">
-                      <p className="text-[8px] text-gray-400 uppercase font-black mb-1">Level</p>
-                      <p className="text-[10px] font-mono font-bold" style={{ color: getStandardAQIColor(selectedLocation.aqiBase) }}>{getAQILevel(selectedLocation.aqiBase).toUpperCase()}</p>
+          {GLOBAL_LOCATIONS.map((loc, idx) => {
+            const liveData = hubQueries[idx].data;
+            return (
+              <CircleMarker
+                key={loc.city}
+                center={[loc.lat, loc.lon]}
+                radius={selectedLocation.city === loc.city ? 15 : 8}
+                pathOptions={{
+                  color: selectedLocation.city === loc.city ? '#00ffff' : getStandardAQIColor(liveData?.aqi || 50),
+                  fillColor: selectedLocation.city === loc.city ? '#00ffff' : getStandardAQIColor(liveData?.aqi || 50),
+                  fillOpacity: 0.8,
+                  weight: selectedLocation.city === loc.city ? 15 : 2,
+                  opacity: 0.4
+                }}
+              >
+                <Popup className="glass-popup">
+                  <div className="p-6 w-[260px] bg-white/95 backdrop-blur-3xl border border-black/5 rounded-[2rem] text-black shadow-2xl">
+                    <div className="flex items-center gap-2 mb-4 border-b border-black/10 pb-4">
+                      <Activity className="h-5 w-5 text-primary" />
+                      <div>
+                        <h4 className="font-heading font-black text-2xl text-black uppercase tracking-tighter leading-none">{loc.city} Hub</h4>
+                        <div className="flex items-center gap-1 mt-1">
+                          <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+                          <span className="text-[6px] font-black uppercase text-gray-500 tracking-widest">Live Sync Alpha</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-3 bg-black/5 rounded-2xl border border-black/5">
-                      <p className="text-[8px] text-gray-400 uppercase font-black mb-1">Status</p>
-                      <p className="text-[10px] font-mono font-bold text-primary">SECURE</p>
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-end">
+                        <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Air Status</span>
+                        <span className="text-4xl font-black text-primary leading-none glow-text">
+                          {liveData?.aqi || "---"}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 bg-black/5 rounded-2xl border border-black/5">
+                          <p className="text-[8px] text-gray-400 uppercase font-black mb-1">Level</p>
+                          <p className="text-[10px] font-mono font-bold" style={{ color: getStandardAQIColor(liveData?.aqi || 50) }}>
+                            {getAQILevel(liveData?.aqi || 50).toUpperCase()}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-black/5 rounded-2xl border border-black/5">
+                          <p className="text-[8px] text-gray-400 uppercase font-black mb-1">Status</p>
+                          <p className="text-[10px] font-mono font-bold text-primary">SECURE</p>
+                        </div>
+                      </div>
+                      {selectedLocation.city !== loc.city && (
+                        <button
+                          onClick={() => setSelectedLocation(loc)}
+                          className="w-full py-3 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all"
+                        >
+                          Target Sector
+                        </button>
+                      )}
                     </div>
                   </div>
-                </div>
-              </div>
-            </PopupAny>
-          </CircleMarkerAny>
-        </MapContainerAny>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
+        </MapContainer>
       </div>
 
       {/* HUD Controls Bottom LEFT */}
@@ -254,7 +279,7 @@ const HubMap = ({
                 <div className="h-px bg-black/5 my-2" />
                 <p className="text-black uppercase font-bold tracking-tighter leading-none opacity-80 font-heading">SENSING ATMOSPHERE...</p>
                 <p className="opacity-40 font-mono text-[7px] truncate lowercase italic">transmitting_hex_data_stream_0xAF4412BC4299FE0011AABB</p>
-                <p className="text-secondary animate-pulse font-bold tracking-widest mt-2 uppercase">!! PM2.5 Variance Detected</p>
+                <p className="text-secondary animate-pulse font-bold tracking-widest mt-2 uppercase">!! Live Sync Alpha Active</p>
               </div>
             </motion.div>
           )}
@@ -312,13 +337,41 @@ export default function Analytics() {
   const [activeLayer, setActiveLayer] = useState<"aqi" | "wind" | "solar" | "risk">("aqi");
   const [mapZoom, setMapZoom] = useState(13);
   const [showTerminal, setShowTerminal] = useState(true);
-  const [legendExpanded, setLegendExpanded] = useState(true);
+  const [legendExpanded, setLegendExpanded] = useState(false);
 
-  // Sync data with current location seed
-  const dailyData = generateHistoricalData(1, selectedLocation.aqiBase);
-  const weeklyData = generateHistoricalData(7, selectedLocation.aqiBase);
-  const monthlyData = generateHistoricalData(30, selectedLocation.aqiBase);
-  const annualData = generateAnnualReportData(selectedLocation.aqiBase);
+  const hubQueries = useQueries({
+    queries: GLOBAL_LOCATIONS.map(loc => ({
+      queryKey: ["/api/environment/current", loc.lat, loc.lon],
+      queryFn: async () => {
+        const res = await fetch(`/api/environment/current?latitude=${loc.lat}&longitude=${loc.lon}`);
+        if (!res.ok) throw new Error("Failed up to fetch hub data");
+        return res.json();
+      },
+      staleTime: 1000 * 60 * 5,
+    }))
+  });
+
+  const hubData = GLOBAL_LOCATIONS.map((loc, idx) => {
+    const data = hubQueries[idx].data;
+    return {
+      name: loc.name,
+      city: loc.city,
+      lat: loc.lat,
+      lon: loc.lon,
+      aqi: data?.aqi || loc.aqiBase,
+      temp: data?.temperature,
+      humidity: data?.humidity,
+      co2: data?.aqi ? Math.round(data.aqi * 2.5) : 100
+    };
+  }).filter(h => h.city !== selectedLocation.city);
+
+  const currentHubData = hubQueries.find(q => q.data?.city === selectedLocation.city)?.data;
+  const dailyBase = currentHubData?.aqi || selectedLocation.aqiBase;
+
+  const dailyData = generateHistoricalData(1, dailyBase);
+  const weeklyData = generateHistoricalData(7, dailyBase);
+  const monthlyData = generateHistoricalData(30, dailyBase);
+  const annualData = generateAnnualReportData(dailyBase);
   const [analysisPower, setAnalysisPower] = useState(48.2);
   const [isBoosting, setIsBoosting] = useState(false);
 
@@ -327,10 +380,10 @@ export default function Analytics() {
     setAnalysisPower(98.4);
     setTimeout(() => {
       setIsBoosting(false);
+      setAnalysisPower(48.2);
     }, 3000);
   };
 
-  const hubData = generateGlobalHubsData(selectedLocation.city);
   const carbonData = generateCarbonTrend();
 
   const heatmapPoints = Array.from({ length: isBoosting ? 500 : 300 }).map((_, idx) => ({
@@ -361,19 +414,19 @@ export default function Analytics() {
           </div>
         </header>
 
-        <Tabs defaultValue="advanced" className="w-full">
+        <Tabs defaultValue="daily" className="w-full">
           <TabsList className="bg-transparent p-0 flex flex-wrap h-auto gap-2 md:gap-4 mb-6 md:mb-8">
             <TabTrigger value="daily">Daily Trends</TabTrigger>
             <TabTrigger value="weekly">Weekly Trends</TabTrigger>
             <TabTrigger value="annual">Yearly Summary</TabTrigger>
-            <TabTrigger value="advanced" active>Global Map</TabTrigger>
+            <TabTrigger value="advanced">Global Map</TabTrigger>
           </TabsList>
 
           <div className="mt-4 md:mt-8">
             {/* ANNUAL REPORT TAB */}
             <TabsContent value="annual" className="space-y-6 md:space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                <StatCard title="Yearly Avg" value={Math.round(selectedLocation.aqiBase + 5).toString()} trend="none" label="Air Quality" />
+                <StatCard title="Yearly Avg" value={Math.round(dailyBase + 5).toString()} trend="none" label="Air Quality" />
                 <StatCard title="Safety Rating" value="92%" trend="up" label="Reliable" />
                 <StatCard title="CO2 Reduced" value="1.2k Tons" trend="up" label="Saved" />
               </div>
@@ -410,7 +463,7 @@ export default function Analytics() {
                         itemStyle={{ color: 'var(--color-primary)' }}
                       />
                       <Bar dataKey="aqi" radius={[8, 8, 0, 0]} barSize={40}>
-                        {annualData.map((entry, index) => (
+                        {annualData.map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.aqi > 60 ? 'var(--color-secondary)' : 'var(--color-primary)'} fillOpacity={0.8} />
                         ))}
                       </Bar>
@@ -426,7 +479,7 @@ export default function Analytics() {
                     <h4 className="text-xl md:text-2xl font-heading font-black text-white uppercase tracking-tighter leading-none">Community Air History</h4>
                   </div>
                   <div className="space-y-3 md:space-y-4">
-                    {annualData.slice(-4).map((month, i) => (
+                    {annualData.slice(-4).map((month: any, i: number) => (
                       <div key={i} className="flex items-center justify-between p-3 md:p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/5">
                         <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-widest">{month.timestamp}</span>
                         <div className="flex items-center gap-3 md:gap-6">
@@ -454,7 +507,7 @@ export default function Analytics() {
                     </div>
                     <div className="space-y-4 md:space-y-6">
                       <p className="text-gray-400 text-[11px] md:text-sm leading-relaxed italic">
-                        "Residents in {selectedLocation.city} noticed significantly clearer sunsets this month. The new 'Green Corridor' expansion is already making the morning air feel crisp and revitalized."
+                        {"Residents in " + selectedLocation.city + " noticed significantly clearer sunsets this month. The new 'Green Corridor' expansion is already making the morning air feel crisp and revitalized."}
                       </p>
                       <div className="p-4 md:p-6 rounded-xl md:rounded-2xl bg-secondary/5 border border-secondary/20">
                         <h5 className="text-[9px] md:text-[10px] font-black text-secondary uppercase tracking-widest mb-2">Community Action</h5>
@@ -478,6 +531,7 @@ export default function Analytics() {
                 showTerminal={showTerminal}
                 legendExpanded={legendExpanded}
                 setLegendExpanded={setLegendExpanded}
+                hubQueries={hubQueries}
               />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -512,7 +566,7 @@ export default function Analytics() {
                           fill="url(#barGradient)"
                           barSize={35}
                         >
-                          {hubData.map((entry, index) => (
+                          {hubData.map((entry: any, index: number) => (
                             <Cell key={`cell-${index}`} fill={getStandardAQIColor(entry.aqi)} fillOpacity={0.8} />
                           ))}
                         </Bar>
@@ -605,17 +659,14 @@ export default function Analytics() {
   );
 }
 
-function TabTrigger({ value, children, active }: { value: string, children: React.ReactNode, active?: boolean }) {
+function TabTrigger({ value, children }: { value: string, children: React.ReactNode }) {
   return (
-    <TabsTrigger
+    <TabsTriggerPrimitive
       value={value}
-      className={`px-8 py-4 text-[11px] font-black uppercase tracking-[0.3em] transition-all duration-500 rounded-2xl border ${active
-        ? "bg-primary text-black border-primary shadow-[0_0_30px_rgba(0,255,255,0.2)]"
-        : "text-gray-500 border-white/10 hover:border-white/20 hover:text-white"
-        } data-[state=active]:bg-primary data-[state=active]:text-black data-[state=active]:border-primary`}
+      className="px-8 py-4 text-[11px] font-black uppercase tracking-[0.3em] transition-all duration-500 rounded-2xl border text-gray-500 border-white/10 hover:border-white/20 hover:text-white data-[state=active]:bg-primary data-[state=active]:text-black data-[state=active]:border-primary data-[state=active]:shadow-[0_0_30px_rgba(0,255,255,0.2)]"
     >
       {children}
-    </TabsTrigger>
+    </TabsTriggerPrimitive>
   );
 }
 
