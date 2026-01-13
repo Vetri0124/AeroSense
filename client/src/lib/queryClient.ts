@@ -22,7 +22,6 @@ export async function apiRequest(
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
   });
 
   await throwIfResNotOk(res);
@@ -36,11 +35,8 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
     async ({ queryKey }) => {
       const token = localStorage.getItem("token");
-      const headers: Record<string, string> = {
-        "credentials": "include"
-      } as any;
-
       const fetchHeaders: Record<string, string> = {};
+
       if (token) {
         fetchHeaders["Authorization"] = `Bearer ${token}`;
       }
