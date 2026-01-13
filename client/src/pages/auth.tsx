@@ -3,6 +3,7 @@ import { useLocation as useRouter } from "wouter";
 import { motion } from "framer-motion";
 import { Lock, Mail, User, Eye, EyeOff, Shield, Zap, MapPin, Search, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function AuthPage() {
     const [, setLocation] = useRouter();
@@ -85,13 +86,7 @@ export default function AuthPage() {
                 ? { email: formData.email, password: formData.password }
                 : formData;
 
-            const response = await fetch(endpoint, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(payload),
-            });
+            const response = await apiRequest("POST", endpoint, payload);
 
             const data = await response.json();
 

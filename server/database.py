@@ -1,4 +1,5 @@
 import os
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from typing import Optional
@@ -9,7 +10,11 @@ MONGODB_URL = os.environ.get("MONGODB_URL") or "mongodb://localhost:27017"
 DATABASE_NAME = os.environ.get("DATABASE_NAME") or "aerosense"
 
 # MongoDB Client
-client = AsyncIOMotorClient(MONGODB_URL)
+# Add certifi to fix SSL handshake issues with Atlas
+client = AsyncIOMotorClient(
+    MONGODB_URL, 
+    tlsCAFile=certifi.where()
+)
 db = client[DATABASE_NAME]
 
 # Collections

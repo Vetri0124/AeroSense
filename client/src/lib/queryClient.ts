@@ -12,13 +12,17 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  // Use absolute URL in production if the URL is relative
+  const baseUrl = (import.meta.env.VITE_API_URL || "https://aerosense-2.onrender.com").replace(/\/$/, "");
+  const targetUrl = url.startsWith("http") ? url : `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+
   const token = localStorage.getItem("token");
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, {
+  const res = await fetch(targetUrl, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
@@ -34,6 +38,10 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
     async ({ queryKey }) => {
+      const baseUrl = (import.meta.env.VITE_API_URL || "https://aerosense-2.onrender.com").replace(/\/$/, "");
+      const path = queryKey.join("/");
+      const targetUrl = path.startsWith("http") ? path : `${baseUrl}/${path.startsWith("/") ? path.substring(1) : path}`;
+
       const token = localStorage.getItem("token");
       const fetchHeaders: Record<string, string> = {};
 
@@ -41,7 +49,7 @@ export const getQueryFn: <T>(options: {
         fetchHeaders["Authorization"] = `Bearer ${token}`;
       }
 
-      const res = await fetch(queryKey.join("/") as string, {
+      const res = await fetch(targetUrl, {
         headers: fetchHeaders,
       });
 

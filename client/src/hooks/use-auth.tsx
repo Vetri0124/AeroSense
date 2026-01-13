@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useLocation } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 
 export interface User {
     id: string;
@@ -47,11 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const verifyToken = async (token: string) => {
         try {
-            const response = await fetch("/api/auth/me", {
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                },
-            });
+            const response = await apiRequest("GET", "/api/auth/me");
 
             if (!response.ok) {
                 // Token is invalid, logout
